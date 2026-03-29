@@ -595,6 +595,175 @@ input[type=range] {
   flex-wrap: wrap;
 }
 
+/* ══════════════════════════════════════════════════════
+   OUTDOOR / DAY MODE  (body.outdoor-mode)
+   ══════════════════════════════════════════════════════ */
+body.outdoor-mode {
+  --bg: #f0f4f8;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --border: #c0c8d4;
+  --text: #1a1a2e;
+  --text-muted: #4a5568;
+  --text-dim: #718096;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+/* Auth / Login page */
+body.outdoor-mode .auth-page {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+body.outdoor-mode .auth-card {
+  background: #fff;
+  border-color: #e2e8f0;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+body.outdoor-mode .auth-logo h1 { color: #1a1a2e; }
+body.outdoor-mode .auth-logo p  { color: #4a5568; }
+
+/* Forms */
+body.outdoor-mode .form-input,
+body.outdoor-mode .form-select {
+  background: #f7fafc;
+  border-color: #cbd5e0;
+  color: #1a1a2e;
+}
+body.outdoor-mode .form-input:focus,
+body.outdoor-mode .form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.2);
+}
+body.outdoor-mode .form-input::placeholder { color: #a0aec0; }
+body.outdoor-mode .form-label { color: #4a5568; }
+
+/* Tabs */
+body.outdoor-mode .tab-bar { background: #edf2f7; }
+body.outdoor-mode .tab-btn { color: #4a5568; }
+body.outdoor-mode .tab-btn.active { background: var(--accent); color: #fff; }
+
+/* Role options (login page) */
+body.outdoor-mode .role-option { border-color: #e2e8f0; background: #fff; }
+body.outdoor-mode .role-option:hover { border-color: var(--accent); background: #f0f0ff; }
+body.outdoor-mode .role-option.selected { border-color: var(--accent); background: rgba(79,70,229,0.06); }
+body.outdoor-mode .role-info h4 { color: #1a1a2e; }
+body.outdoor-mode .role-info p  { color: #718096; }
+
+/* Demo role buttons */
+body.outdoor-mode .demo-role-btn { border-color: #e2e8f0; background: #fff; }
+body.outdoor-mode .demo-role-btn:hover { border-color: var(--accent); background: #f0f0ff; }
+body.outdoor-mode .demo-role-btn .role-name { color: #1a1a2e; }
+body.outdoor-mode .demo-role-btn .role-desc { color: #718096; }
+
+/* Navbar */
+body.outdoor-mode .navbar { background: #1e1b4b; color: #fff; border-bottom-color: #312e81; }
+body.outdoor-mode .navbar-brand span { color: #fff; }
+body.outdoor-mode #conn-label { color: #e2e8f0; }
+
+/* Buttons — ghost (fix for graph/sheets buttons) */
+body.outdoor-mode .btn-ghost {
+  color: #1a1a2e;
+  border-color: #c0c8d4;
+  background: #fff;
+}
+body.outdoor-mode .btn-ghost:hover {
+  background: #edf2f7;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* Ghost buttons inside navbar stay white */
+body.outdoor-mode .navbar .btn-ghost {
+  color: #fff;
+  border-color: rgba(255,255,255,0.4);
+  background: transparent;
+}
+body.outdoor-mode .navbar .btn-ghost:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+/* Other buttons */
+body.outdoor-mode .btn-success { background: #16a34a; color: #fff; }
+body.outdoor-mode .btn-danger  { background: #dc2626; color: #fff; }
+body.outdoor-mode .btn-info    { background: #2563eb; color: #fff; }
+body.outdoor-mode .btn-primary { background: #4f46e5; color: #fff; }
+
+/* Stat cards */
+body.outdoor-mode .stat-card { background: #fff; border-color: #c0c8d4; }
+body.outdoor-mode .stat-val  { color: #1e1b4b; font-weight: 800; }
+body.outdoor-mode .stat-lbl  { color: #4a5568; }
+
+/* Sections & cards */
+body.outdoor-mode .section { background: #fff; border-color: #c0c8d4; }
+body.outdoor-mode .card    { background: #fff; border-color: #c0c8d4; }
+
+/* Timer */
+body.outdoor-mode .timer-display { color: #1a1a2e; text-shadow: none; }
+body.outdoor-mode .timer-display.running { color: #16a34a; text-shadow: none; }
+body.outdoor-mode .timer-display.warning { color: #d97706; text-shadow: none; }
+body.outdoor-mode .timer-display.expired { color: #dc2626; text-shadow: none; }
+
+/* Progress bar */
+body.outdoor-mode .progress-bar-wrap { background: #e2e8f0; }
+
+/* Leaderboard table */
+body.outdoor-mode .lb-table th { color: #4a5568; background: #f7fafc; border-bottom-color: #c0c8d4; }
+body.outdoor-mode .lb-table td { color: #1a1a2e; border-bottom-color: #e2e8f0; }
+body.outdoor-mode .lb-table tr:hover td { background: rgba(79,70,229,0.04); }
+body.outdoor-mode .place-badge { background: #edf2f7; color: #1a1a2e; }
+body.outdoor-mode .lb-table .place-1 td { background: #fef9c3 !important; color: #1a1a2e !important; }
+body.outdoor-mode .lb-table .place-2 td { background: #e2e8f0 !important; color: #1a1a2e !important; }
+body.outdoor-mode .lb-table .place-3 td { background: #fed7aa !important; color: #1a1a2e !important; }
+body.outdoor-mode .lb-table .place-1 .place-badge { background: #f59e0b; color: #fff; }
+body.outdoor-mode .lb-table .place-2 .place-badge { background: #94a3b8; color: #fff; }
+body.outdoor-mode .lb-table .place-3 .place-badge { background: #c2410c; color: #fff; }
+
+/* Tag pills */
+body.outdoor-mode .tag-pill { background: #f7fafc; border-color: #cbd5e0; color: #4a5568; }
+body.outdoor-mode .tag-pill:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Collapsible */
+body.outdoor-mode .collapsible-header { background: #f7fafc; border-color: #c0c8d4; color: #1a1a2e; }
+body.outdoor-mode .collapsible-body { border-color: #c0c8d4; }
+
+/* Antenna buttons */
+body.outdoor-mode .ant-btn { background: #f7fafc; border-color: #c0c8d4; color: #4a5568; }
+body.outdoor-mode .ant-btn.on { border-color: #16a34a; background: rgba(22,163,74,0.1); color: #16a34a; }
+
+/* Toasts */
+body.outdoor-mode .toast.success { background: #dcfce7; border-color: #22c55e; color: #166534; }
+body.outdoor-mode .toast.error   { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+body.outdoor-mode .toast.info    { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+
+/* Alerts */
+body.outdoor-mode .alert-danger  { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.2); color: #dc2626; }
+body.outdoor-mode .alert-success { background: rgba(34,197,94,.08);  border-color: rgba(34,197,94,.2); color: #16a34a; }
+body.outdoor-mode .alert-info    { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.2); color: #2563eb; }
+
+/* Badges */
+body.outdoor-mode .badge-info    { background: rgba(59,130,246,.12); color: #2563eb; }
+body.outdoor-mode .badge-success { background: rgba(34,197,94,.12);  color: #16a34a; }
+body.outdoor-mode .badge-warning { background: rgba(245,158,11,.12); color: #d97706; }
+body.outdoor-mode .badge-muted   { background: rgba(100,116,139,.1); color: #4a5568; }
+
+/* Modal */
+body.outdoor-mode .modal-box { background: #fff; border-color: #c0c8d4; }
+body.outdoor-mode .modal-close { color: #4a5568; }
+
+/* Config banner */
+body.outdoor-mode .config-banner { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.3); }
+
+/* Connection dot */
+body.outdoor-mode .conn-dot.connected { background: #16a34a; box-shadow: 0 0 6px #16a34a; }
+
+/* Demo banner */
+body.outdoor-mode .demo-banner { background: linear-gradient(90deg, #6d28d9, #4f46e5); }
+
+/* Admin user rows */
+body.outdoor-mode .user-row-demo { border-bottom-color: #e2e8f0; }
+body.outdoor-mode select.role-sel { background: #f7fafc; border-color: #cbd5e0; color: #1a1a2e; }
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }

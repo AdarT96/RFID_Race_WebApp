@@ -4,7 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>מערכת תזמון RFID — כניסה</title>
-  <link rel="stylesheet" href="css/main.css">
+<link rel="stylesheet" href="css/main.css">
+  <script>
+    // מצב חוץ — ברירת מחדל מופעל
+    if (localStorage.getItem('outdoorMode') !== '0') document.body.classList.add('outdoor-mode');
+  </script>
   <style>
     .role-option {
       display: flex; align-items: center; gap: 12px;
