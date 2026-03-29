@@ -279,6 +279,10 @@
         <h3 class="mb-8">💬 תיוגים</h3>
         <p style="font-size:13px; margin-bottom:10px">לחץ על <strong>+</strong> ליד משתתף, ואז בחר תיוג.</p>
         <div class="tag-pills mb-12" id="comment-pill-bar"></div>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap">
+          <input id="custom-comment-input" class="form-input" style="flex:1; min-width:160px; padding:8px 12px; font-size:14px" placeholder="כתוב הערה חופשית…" onkeydown="if(event.key==='Enter') applyCustomComment()">
+          <button class="btn btn-primary" onclick="applyCustomComment()" style="padding:8px 16px; white-space:nowrap">➕ הוסף</button>
+        </div>
         <div id="selected-tag-info" style="font-size:13px; color:var(--text-muted)">לא נבחר משתתף.</div>
       </div>
 
@@ -1294,6 +1298,14 @@ window.simDownloadCsv    = simDownloadCsv;
 window.simSyncSheets     = simSyncSheets;
 window.showChartModal    = showChartModal;
 window.closeChartModal   = closeChartModal;
+window.applyCustomComment = function() {
+  const input = document.getElementById('custom-comment-input');
+  const text = (input ? input.value : '').trim();
+  if (!text) { showToast('הזן טקסט להערה', 'error'); return; }
+  if (!selectedEpc) { showToast('בחר משתתף קודם (לחץ + ליד השורה)', 'error'); return; }
+  applyTag(text);
+  if (input) input.value = '';
+};
 window.selectParticipant = selectParticipant;
 window.demoApprove       = demoApprove;
 window.demoReject        = demoReject;
