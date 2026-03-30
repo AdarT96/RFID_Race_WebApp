@@ -957,6 +957,14 @@
   const _initAppOrig = initApp;
   initApp = function() {
     _initAppOrig();
+    // אתחל תחנה פעילה לפי הצוות של המשתמש המחובר
+    if (currentUser && currentUser.team) {
+      const userTeam = String(currentUser.team).replace(/\D+/g, '').padStart(2, '0');
+      if (userTeam) {
+        activeGroup = userTeam;
+        localStorage.setItem('activeGroup', activeGroup);
+      }
+    }
     ensureGroupSelector();
     updateLeaderboard(leaderboardData);
   };
