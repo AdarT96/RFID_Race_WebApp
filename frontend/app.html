@@ -100,7 +100,7 @@
     <!-- כרטיסי סטטוס -->
     <div class="stat-grid mb-16">
       <div class="stat-card">
-        <div class="stat-val" id="op-round">—</div>
+        <div class="stat-val" id="op-round">0</div>
         <div class="stat-lbl">סבב</div>
       </div>
       <div class="stat-card">
@@ -191,7 +191,7 @@
     <!-- כרטיסי סטטוס (קריאה בלבד) -->
     <div class="stat-grid mb-16">
       <div class="stat-card">
-        <div class="stat-val" id="ev-round">—</div>
+        <div class="stat-val" id="ev-round">0</div>
         <div class="stat-lbl">סבב</div>
       </div>
       <div class="stat-card">
@@ -452,7 +452,7 @@
 
   function updateStatusUI(s, ant) {
     const stationLabel = activeGroup ? ` · ת${activeGroup}` : '';
-    const uiRound = (s.round_mapped ?? s.round ?? 1);
+    const uiRound = (s.round_mapped ?? s.round ?? 0);
     setStatVal('op-round',      '#' + uiRound + stationLabel);
     setStatVal('op-status',     s.scanning ? '🟢 סורק' : '🔴 עצור');
     setStatVal('op-tags',       s.tags_count);
