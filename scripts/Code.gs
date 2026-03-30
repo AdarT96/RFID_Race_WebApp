@@ -14,7 +14,7 @@ var TIMEZONE         = "Asia/Jerusalem";
 // Same base columns as your driver + support for extended rows
 var COLUMN_HEADERS = [
   "Timestamp", "EPC", "first_ms", "last_ms", "count", "antenna", "rssi_dbm", "place",
-  "comments", "laps", "round", "mode"
+  "comments", "laps", "round", "mode", "station", "evaluator_name", "evaluator_team"
 ];
 
 function doPost(e) {
@@ -103,6 +103,9 @@ function doPost(e) {
     ensureExtendedHeaders_(sheet);
 
     var timestamp = Utilities.formatDate(new Date(), TIMEZONE, TIMESTAMP_FORMAT);
+    var station = String(payload.station || payload.evaluator_team || "");
+    var evaluatorName = String(payload.evaluator_name || "");
+    var evaluatorTeam = String(payload.evaluator_team || "");
     var dataToWrite = rows.map(function(row) {
       var epc = row[0] || "";
       var firstMsv = row[1] || 0;
@@ -113,7 +116,7 @@ function doPost(e) {
       var place = row[6] || 0;
       var comments = Array.isArray(row[7]) ? row[7].join(", ") : (row[7] || "");
       var laps = row[8] || "";
-      return [timestamp, epc, firstMsv, lastMs, count, antenna, rssi, place, comments, laps, round, mode];
+      return [timestamp, epc, firstMsv, lastMs, count, antenna, rssi, place, comments, laps, round, mode, station, evaluatorName, evaluatorTeam];
     });
 
     var startRow = sheet.getLastRow() + 1;
@@ -140,23 +143,48 @@ function getOrCreateSheet(spreadsheet, sheetName) {
 }
 
 function ensureSimpleHeaders_(sheet) {
-  if (sheet.getLastRow() !== 0) return;
-  sheet.appendRow(["מקום", "EPC", "זמן (ms)", "זמן (mm:ss)", "אנטנה", "RSSI", "סבב", "תאריך", "תחנה", "מעריך", "צוות מעריך", "הערות"]);
-  sheet.getRange(1, 1, 1, 12)
-       .setFontWeight("bold")
-       .setBackground("#4a86e8")
-       .setFontColor("white");
-  sheet.setFrozenRows(1);
+  var headers = ["מקום", "EPC", "זמן (ms)", "זמן (mm:ss)", "אנטנה", "RSSI", "סבב", "תאריך", "תחנה", "מעריך", "צוות מעריך", "הערות"];
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
+    sheet.getRange(1, 1, 1, 12)
+         .setFontWeight("bold")
+         .setBackground("#4a86e8")
+         .setFontColor("white");
+    sheet.setFrozenRows(1);
+    return;
+  }
+
+  // שדרוג שורת כותרות קיימת (בקבצים ישנים בלי תחנה/מעריך)
+  var existing = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  var needsUpgrade = false;
+  for (var i = 0; i < headers.length; i++) {
+    if (String(existing[i] || "") !== headers[i]) { needsUpgrade = true; break; }
+  }
+  if (needsUpgrade) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
 }
 
 function ensureExtendedHeaders_(sheet) {
-  if (sheet.getLastRow() !== 0) return;
-  sheet.appendRow(COLUMN_HEADERS);
-  sheet.getRange(1, 1, 1, COLUMN_HEADERS.length)
-       .setFontWeight("bold")
-       .setBackground("#4A90D9")
-       .setFontColor("#FFFFFF");
-  sheet.setFrozenRows(1);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(COLUMN_HEADERS);
+    sheet.getRange(1, 1, 1, COLUMN_HEADERS.length)
+         .setFontWeight("bold")
+         .setBackground("#4A90D9")
+         .setFontColor("#FFFFFF");
+    sheet.setFrozenRows(1);
+    return;
+  }
+
+  // שדרוג כותרות קיימות גם בגיליון ישן
+  var existing = sheet.getRange(1, 1, 1, COLUMN_HEADERS.length).getValues()[0];
+  var needsUpgrade = false;
+  for (var i = 0; i < COLUMN_HEADERS.length; i++) {
+    if (String(existing[i] || "") !== String(COLUMN_HEADERS[i] || "")) { needsUpgrade = true; break; }
+  }
+  if (needsUpgrade) {
+    sheet.getRange(1, 1, 1, COLUMN_HEADERS.length).setValues([COLUMN_HEADERS]);
+  }
 }
 
 function appendRoundDividerIfNeeded_(sheet, round) {
