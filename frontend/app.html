@@ -949,7 +949,23 @@
     }
     const groups = Array.from(groupsSet).filter(Boolean).sort();
     sel.innerHTML = groups.map(g => `<option value="${g}">תחנה ${g}</option>`).join('');
-    if (!activeGroup || !groups.includes(activeGroup)) activeGroup = groups[0] || '01';
+
+    // תעדוף: צוות המשתמש המחובר > localStorage > ברירת מחדל
+    const userTeamNorm = currentUser && currentUser.team
+      ? String(currentUser.team).replace(/\D+/g, '').padStart(2, '0')
+      : '';
+    if (userTeamNorm) {
+      activeGroup = userTeamNorm;
+      // אם הצוות עדיין לא ברשימה (נתונים טרם הגיעו) — הוסף אותו
+      if (!groups.includes(activeGroup)) {
+        const opt = document.createElement('option');
+        opt.value = activeGroup;
+        opt.textContent = 'תחנה ' + activeGroup;
+        sel.appendChild(opt);
+      }
+    } else if (!activeGroup || !groups.includes(activeGroup)) {
+      activeGroup = groups[0] || '01';
+    }
     sel.value = activeGroup;
     localStorage.setItem('activeGroup', activeGroup);
   }
