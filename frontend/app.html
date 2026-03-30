@@ -421,11 +421,8 @@
         roundBaseRaw = Number(status.round || 0);
       }
       const rawRound = Number(status.round || 0);
-      // mapped: כמה סבבים עברו מאז שהאפליקציה נפתחה
-      // אם rawRound <= roundBaseRaw (לפני לחיצת התחל) → מציגים 1
-      const mappedRound = rawRound <= roundBaseRaw
-        ? 1
-        : rawRound - roundBaseRaw;
+      // mapped: מאתחלים ל-0; לחיצה ראשונה על START תעלה ל-1
+      const mappedRound = Math.max(0, rawRound - roundBaseRaw);
       status.round_mapped = mappedRound;
       raceStatus = status;
       setConnected(true);
@@ -455,7 +452,7 @@
 
   function updateStatusUI(s, ant) {
     const stationLabel = activeGroup ? ` · ת${activeGroup}` : '';
-    const uiRound = s.round_mapped || s.round || 1;
+    const uiRound = (s.round_mapped ?? s.round ?? 1);
     setStatVal('op-round',      '#' + uiRound + stationLabel);
     setStatVal('op-status',     s.scanning ? '🟢 סורק' : '🔴 עצור');
     setStatVal('op-tags',       s.tags_count);
@@ -590,7 +587,8 @@
       triggerAutoSheetsSync('poll');
       // שמור לפי תחנה (station) = הצוות של המגבש המחובר
       const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
-      const mappedRound = status.round_mapped || Math.max(1, Number(status.round || 0) - Number(roundBaseRaw || 0));
+      const mappedRound = (status.round_mapped ?? Math.max(0, Number(status.round || 0) - Number(roundBaseRaw || 0)));
+      if (mappedRound < 1) return; // לפני START לא שומרים סבב 0
       const raceRef = doc(db, 'races', `race_${mappedRound}_station_${stationKey}`);
       await setDoc(raceRef, {
         round: mappedRound, mode: status.mode === 1 ? 'laps' : 'arrival',
@@ -760,7 +758,7 @@
     showToast(`תיוג "${tag}" נוסף`, 'success');
     try {
       const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
-      const commentRound = raceStatus.round_mapped || raceStatus.round || 1;
+      const commentRound = Math.max(1, raceStatus.round_mapped || raceStatus.round || 1);
       const raceRef = doc(db, 'races', `race_${commentRound}_station_${stationKey}`);
       const snap = await getDoc(raceRef);
       if (snap.exists()) {

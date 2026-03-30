@@ -46,3 +46,7 @@ const APP_CONFIG = {
   // תיוגי הערות למעריך
   commentTags: ["טכניקה", "מצוינות", "מהירות", "עבודת צוות", "דיוק", "מנהיגות"]
 };
+
+// expose explicitly for module scripts (auth.js/app.html)
+window.FIREBASE_CONFIG = FIREBASE_CONFIG;
+window.APP_CONFIG = APP_CONFIG;
