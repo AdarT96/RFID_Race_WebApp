@@ -558,10 +558,13 @@
       leaderboardData = rows;
       updateLeaderboard(rows);
       triggerAutoSheetsSync('poll');
-      const raceRef = doc(db, 'races', `race_${status.round}`);
+      // שמור לפי תחנה (station) = הצוות של המגבש המחובר
+      const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
+      const raceRef = doc(db, 'races', `race_${status.round}_station_${stationKey}`);
       await setDoc(raceRef, {
         round: status.round, mode: status.mode === 1 ? 'laps' : 'arrival',
         status: status.scanning ? 'running' : 'stopped',
+        station: stationKey,
         elapsedMs: status.elapsed_ms, durationMs: status.scan_duration_ms,
         updatedAt: serverTimestamp(),
         tags: rows.map(r => ({
@@ -722,7 +725,8 @@
     updateLeaderboard(leaderboardData);
     showToast(`תיוג "${tag}" נוסף`, 'success');
     try {
-      const raceRef = doc(db, 'races', `race_${raceStatus.round || 1}`);
+      const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
+      const raceRef = doc(db, 'races', `race_${raceStatus.round || 1}_station_${stationKey}`);
       const snap = await getDoc(raceRef);
       if (snap.exists()) {
         const data = snap.data();
@@ -1012,19 +1016,26 @@
     onSnapshot(query(racesCol), (snap) => {
       allRacesCache = [];
       if (snap.empty) return;
+
+      // מיין לפי תחנה + סבב
+      const myStation = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '');
+
       let latest = null;
       snap.forEach(d => {
         const data = d.data();
         allRacesCache.push(data);
+        // מעריך: קרא רק מסמכים של התחנה שלו
+        if (myStation && data.station && data.station !== myStation) return;
         if (!latest || (data.round || 0) > (latest.round || 0)) latest = data;
       });
+
       if (!latest || !latest.tags) return;
       if (currentUser?.role !== 'operator' && currentUser?.role !== 'admin') {
         leaderboardData = latest.tags.map(t => ({ ...t, comments: t.comments || [] }));
         updateLeaderboard(leaderboardData);
         setStatVal('ev-round', '#' + latest.round);
         setStatVal('ev-status', latest.status === 'running' ? '🟢 סורק' : '🔴 עצור');
-        setStatVal('ev-tags', getFilteredRows(latest.tags).length);
+        setStatVal('ev-tags', latest.tags.length);
         triggerAutoSheetsSync('firebase');
       }
     });
