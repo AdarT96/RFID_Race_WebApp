@@ -914,7 +914,10 @@ async function simSyncSheets(isAuto = false) {
           count: 1,
           mode: s.mode || (raceMode === 1 ? 'laps' : 'arrival'),
           laps: Number(r.laps || 0),
-          comments: Array.isArray(r.comments) ? r.comments.join('|') : (r.comments || '')
+          comments: Array.isArray(r.comments) ? r.comments.join('|') : (r.comments || ''),
+          station: activeGroup || '',
+          evaluator_name: currentRole === 'evaluator' ? 'Demo Evaluator' : '',
+          evaluator_team: activeGroup || ''
         };
         if (APP_CONFIG.sheetsApiKey && !APP_CONFIG.sheetsApiKey.startsWith('YOUR_')) {
           bodyObj.key = APP_CONFIG.sheetsApiKey;

@@ -862,6 +862,7 @@
       }
 
       const requests = unsynced.map((r) => {
+        const stationForSheets = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '');
         const bodyObj = {
           place: Number(r[6] || 0),
           epc: String(r[0] || ''),
@@ -874,7 +875,7 @@
           mode: payload.mode || '',
           laps: Number(r[8] || 0),
           comments: Array.isArray(r[7]) ? r[7].join('|') : (r[7] || ''),
-          station: activeGroup || '',
+          station: stationForSheets,
           evaluator_name: currentUser?.name || '',
           evaluator_team: currentUser?.team || ''
         };
