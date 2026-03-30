@@ -305,6 +305,7 @@
   let autoSheetsSyncTimer = null;
   let lastAutoSheetsHash = '';
   let sheetsSyncedKeys = new Set();
+  let roundBaseRaw = null;
 
   // ── מצב חוץ ──────────────────────────────────────────
   (function() {
@@ -406,6 +407,9 @@
       ]);
       const status = await statusRes.json();
       const ant    = await antRes.json();
+      if (roundBaseRaw === null) roundBaseRaw = Number(status.round || 0);
+      const mappedRound = Math.max(1, Number(status.round || 0) - Number(roundBaseRaw || 0));
+      status.round_mapped = mappedRound;
       raceStatus = status;
       setConnected(true);
       updateStatusUI(status, ant);
@@ -434,11 +438,12 @@
 
   function updateStatusUI(s, ant) {
     const stationLabel = activeGroup ? ` · ת${activeGroup}` : '';
-    setStatVal('op-round',      '#' + s.round + stationLabel);
+    const uiRound = s.round_mapped || s.round || 1;
+    setStatVal('op-round',      '#' + uiRound + stationLabel);
     setStatVal('op-status',     s.scanning ? '🟢 סורק' : '🔴 עצור');
     setStatVal('op-tags',       s.tags_count);
     setStatVal('op-mode-label', s.mode === 1 ? 'הקפות' : 'הגעה');
-    setStatVal('ev-round',      '#' + s.round + stationLabel);
+    setStatVal('ev-round',      '#' + uiRound + stationLabel);
     setStatVal('ev-status',     s.scanning ? '🟢 סורק' : '🔴 עצור');
     setStatVal('ev-tags',       s.tags_count);
 
@@ -564,9 +569,10 @@
       triggerAutoSheetsSync('poll');
       // שמור לפי תחנה (station) = הצוות של המגבש המחובר
       const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
-      const raceRef = doc(db, 'races', `race_${status.round}_station_${stationKey}`);
+      const mappedRound = status.round_mapped || Math.max(1, Number(status.round || 0) - Number(roundBaseRaw || 0));
+      const raceRef = doc(db, 'races', `race_${mappedRound}_station_${stationKey}`);
       await setDoc(raceRef, {
-        round: status.round, mode: status.mode === 1 ? 'laps' : 'arrival',
+        round: mappedRound, mode: status.mode === 1 ? 'laps' : 'arrival',
         status: status.scanning ? 'running' : 'stopped',
         station: stationKey,
         elapsedMs: status.elapsed_ms, durationMs: status.scan_duration_ms,
@@ -733,7 +739,8 @@
     showToast(`תיוג "${tag}" נוסף`, 'success');
     try {
       const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
-      const raceRef = doc(db, 'races', `race_${raceStatus.round || 1}_station_${stationKey}`);
+      const commentRound = raceStatus.round_mapped || raceStatus.round || 1;
+      const raceRef = doc(db, 'races', `race_${commentRound}_station_${stationKey}`);
       const snap = await getDoc(raceRef);
       if (snap.exists()) {
         const data = snap.data();
@@ -859,7 +866,8 @@
     try {
       const seenInThisSync = new Set();
       const unsynced = payload.rows.filter((r) => {
-        const key = `${Number(payload.round || 0)}|${String(r[0] || '')}|${Number(r[1] || 0)}`;
+        const cmt = Array.isArray(r[7]) ? r[7].join('|') : (r[7] || '');
+        const key = `${Number(payload.round || 0)}|${String(r[0] || '')}|${Number(r[1] || 0)}|${cmt}`;
         if (seenInThisSync.has(key)) return false;
         seenInThisSync.add(key);
         return !sheetsSyncedKeys.has(key);
@@ -902,7 +910,8 @@
       results.forEach((res, i) => {
         if (res.ok) {
           const r = unsynced[i];
-          const key = `${Number(payload.round || 0)}|${String(r[0] || '')}|${Number(r[1] || 0)}`;
+          const cmt = Array.isArray(r[7]) ? r[7].join('|') : (r[7] || '');
+          const key = `${Number(payload.round || 0)}|${String(r[0] || '')}|${Number(r[1] || 0)}|${cmt}`;
           sheetsSyncedKeys.add(key);
         }
       });

@@ -259,10 +259,12 @@ function updateSimpleRow_(sheet, rowIndex, payload) {
   var antenna = (newAnt !== 0) ? newAnt : oldAnt;
   var rssi = (newRssi !== 0) ? newRssi : oldRssi;
 
-  var station = String(payload.station || "");
-  var evaluatorName = String(payload.evaluator_name || "");
-  var evaluatorTeam = String(payload.evaluator_team || "");
-  var comments = String(payload.comments || "");
+  var station = String(payload.station || oldVals[8] || "");
+  var evaluatorName = String(payload.evaluator_name || oldVals[9] || "");
+  var evaluatorTeam = String(payload.evaluator_team || oldVals[10] || "");
+  var comments = String((payload.comments !== undefined && payload.comments !== null && String(payload.comments) !== '')
+    ? payload.comments
+    : (oldVals[11] || ""));
 
   sheet.getRange(rowIndex, 1, 1, 12).setValues([[
     place,
