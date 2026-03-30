@@ -80,12 +80,19 @@ service cloud.firestore {
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/rfid-race-timer.git
-git push -u origin main
+git remote add origin https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git
+git push -u origin HEAD
 ```
+
+> חשוב:
+> - אם אתה רואה `main does not match any` זה אומר שהסניף המקומי שלך הוא כנראה `master` (או סניף אחר), לא `main`.
+> - הפקודה `git push -u origin HEAD` פותרת את זה אוטומטית כי היא דוחפת את הסניף הנוכחי.
+> - אם אתה רואה `https://github.com/YOUR_USERNAME/...` זו כתובת דוגמה בלבד — חייבים להחליף לכתובת ה-repo האמיתית שלך.
 
 Go to GitHub repo → Settings → Pages → Source: **GitHub Actions**  
 The workflow will auto-deploy on every push to `main`.
+
+In this project the workflow is configured for `master` וגם `main`, כך שדחיפה לכל אחד מהם תפעיל deploy.
 
 ---
 
