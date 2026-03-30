@@ -305,6 +305,7 @@
   let autoSheetsSyncTimer = null;
   let lastAutoSheetsHash = '';
   let sheetsSyncedKeys = new Set();
+  let sheetsSyncInProgress = false;
   // roundBaseRaw removed — we use ESP32 raw round directly
 
   // ── מצב חוץ ──────────────────────────────────────────
@@ -582,6 +583,10 @@
       const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
       const mappedRound = status.round_mapped ?? Number(status.round || 0);
       if (mappedRound < 1) return; // לפני START לא שומרים סבב 0
+      // חשוב: שמירת תגיות של הסבב הנוכחי בלבד במסמך הסבב,
+      // כדי למנוע מצב שבו כל המסמך מכיל את כל הסבבים ואז הסנכרון שולח רק "סבב אחרון".
+      const roundRows = rows.filter(r => Number(r.round || 0) === Number(mappedRound));
+      if (roundRows.length === 0) return;
       const raceRef = doc(db, 'races', `race_${mappedRound}_station_${stationKey}`);
       await setDoc(raceRef, {
         round: mappedRound, mode: status.mode === 1 ? 'laps' : 'arrival',
@@ -589,7 +594,8 @@
         station: stationKey,
         elapsedMs: status.elapsed_ms, durationMs: status.scan_duration_ms,
         updatedAt: serverTimestamp(),
-        tags: rows.map(r => ({
+        tags: roundRows.map(r => ({
+          round: r.round,
           epc: r.epc, teamId: r.teamId, participantId: r.participantId,
           place: r.place, firstMs: r.firstMs, lastMs: r.lastMs,
           laps: r.laps, rssi: r.rssi, antenna: r.antenna, comments: r.comments || []
@@ -845,13 +851,19 @@
           place:     t.place || 0,
           comments:  Array.isArray(t.comments) ? t.comments.join('|') : (t.comments || ''),
           laps:      t.laps || 0,
-          round:     rc.round || 1,
+          round:     t.round || rc.round || 1,
           mode:      rc.mode || 'arrival',
           station:   rc.station || myStation
         });
       });
     });
-    return rows;
+    // ניקוי כפילויות מובנה בין מסמכים/עדכונים
+    const uniq = new Map();
+    rows.forEach(r => {
+      const k = `${r.round}|${r.epc}|${r.firstMs}|${r.lastMs}|${r.comments}`;
+      if (!uniq.has(k)) uniq.set(k, r);
+    });
+    return Array.from(uniq.values());
   }
 
   function triggerAutoSheetsSync(reason = 'auto') {
@@ -861,6 +873,7 @@
   }
 
   window.doSyncSheets = async (isAuto = false) => {
+    if (sheetsSyncInProgress) return;
     if (!APP_CONFIG.sheetsApiUrl || APP_CONFIG.sheetsApiUrl.startsWith('YOUR_')) {
       if (!isAuto) showToast('כתובת Google Sheets לא הוגדרה ב-firebase-config.js', 'error');
       return;
@@ -892,6 +905,7 @@
     }
 
     try {
+      sheetsSyncInProgress = true;
       const requests = unsynced.map(r => {
         const bodyObj = {
           place:          Number(r.place),
@@ -929,6 +943,8 @@
       }
     } catch(e) {
       if (!isAuto) showToast('לא ניתן להגיע ל-Sheets API', 'error');
+    } finally {
+      sheetsSyncInProgress = false;
     }
   };
 
