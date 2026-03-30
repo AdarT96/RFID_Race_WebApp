@@ -853,22 +853,35 @@ async function simSyncSheets(isAuto = false) {
     return;
   }
 
+  // בנה רשימת נתונים: snapshots שמורים + נתונים חיים
   const snapshots = (roundSnapshotsByGroup[activeGroup] || []).slice();
   const liveRows = getVisibleLeaderboard();
-  if (scanning && liveRows.length > 0) {
+
+  // אם יש נתונים חיים (בזמן ריצה או אחרי עצירה) — הוסף אותם
+  if (liveRows.length > 0) {
+    // בדוק אם הסבב הנוכחי כבר ב-snapshots
+    const alreadySaved = snapshots.some(s => s.round === round);
+    if (!alreadySaved) {
+      snapshots.push({
+        round,
+        mode: raceMode === 1 ? 'laps' : 'arrival',
+        rows: liveRows.map((r, i) => ({ ...r, place: i + 1 }))
+      });
+    }
+  }
+
+  if (snapshots.length === 0 && liveRows.length === 0) {
+    if (!isAuto) showToast('אין נתונים לסנכרון', 'error');
+    return;
+  }
+
+  // אם אין snapshots אבל יש נתונים חיים — השתמש בהם ישירות
+  if (snapshots.length === 0 && liveRows.length > 0) {
     snapshots.push({
       round,
       mode: raceMode === 1 ? 'laps' : 'arrival',
-      rows: liveRows.map((r, i) => ({
-        ...r,
-        place: i + 1
-      }))
+      rows: liveRows.map((r, i) => ({ ...r, place: i + 1 }))
     });
-  }
-
-  if (snapshots.length === 0) {
-    if (!isAuto) showToast('אין נתונים לסנכרון', 'error');
-    return;
   }
 
   const hash = JSON.stringify(snapshots);
@@ -967,17 +980,20 @@ function buildChart() {
 
 // ── פעולות מנהל ──────────────────────────────────────
 const DEMO_USERS = [
-  { name:'יוסי כץ',     email:'yossi@team.com',  role:'מגבש',   approved:true },
-  { name:'שירה בן דוד', email:'shira@team.com',  role:'מעריכה', approved:true },
-  { name:'רוני אזולאי', email:'roni@team.com',   role:'מגבש',   approved:true },
-  { name:'דנה פרץ',     email:'dana@team.com',   role:'מעריכה', approved:true },
-  { name:'מנהל ראשי',   email:'admin@team.com',  role:'מנהל',   approved:true },
+  { name:'יוסי כץ',     email:'yossi@team.com',  role:'מגבש',   team:1,  approved:true },
+  { name:'שירה בן דוד', email:'shira@team.com',  role:'מעריכה', team:1,  approved:true },
+  { name:'רוני אזולאי', email:'roni@team.com',   role:'מגבש',   team:2,  approved:true },
+  { name:'דנה פרץ',     email:'dana@team.com',   role:'מעריכה', team:2,  approved:true },
+  { name:'מנהל ראשי',   email:'admin@team.com',  role:'מנהל',   team:'', approved:true },
 ];
 
 function renderAdminUsers() {
   const c = document.getElementById('users-list');
   if (!c) return;
-  c.innerHTML = DEMO_USERS.map(u => {
+  const teamOptions = (selected) => Array.from({length:15},(_,i)=>{
+    const v=i+1; return `<option value="${v}" ${Number(selected)===v?'selected':''}>${v}</option>`;
+  }).join('');
+  c.innerHTML = DEMO_USERS.map((u, idx) => {
     const badge = u.role === 'מנהל'
       ? '<span class="badge badge-warning">מנהל</span>'
       : '<span class="badge badge-success">מאושר</span>';
@@ -985,14 +1001,18 @@ function renderAdminUsers() {
       <div class="user-row-demo">
         <div>
           <div style="font-weight:600">${u.name}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${u.email}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${u.email} · צוות ${u.team || '—'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           ${badge}
-          <select class="role-sel" onchange="showToast('תפקיד שונה ל: '+this.value,'success')">
+          <select class="role-sel" onchange="DEMO_USERS[${idx}].role=this.options[this.selectedIndex].text; showToast('תפקיד שונה ל: '+this.options[this.selectedIndex].text,'success')">
             <option ${u.role==='מגבש'   ?'selected':''}>מגבש</option>
             <option ${u.role==='מעריכה' ?'selected':''}>מעריכה</option>
             <option ${u.role==='מנהל'   ?'selected':''}>מנהל</option>
+          </select>
+          <select class="role-sel" title="צוות" onchange="DEMO_USERS[${idx}].team=this.value; renderAdminUsers(); showToast('צוות עודכן: '+this.value,'success')">
+            <option value="">—</option>
+            ${teamOptions(u.team)}
           </select>
         </div>
       </div>`;
