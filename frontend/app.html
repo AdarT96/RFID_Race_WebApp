@@ -433,11 +433,12 @@
   }
 
   function updateStatusUI(s, ant) {
-    setStatVal('op-round',      '#' + s.round);
+    const stationLabel = activeGroup ? ` · ת${activeGroup}` : '';
+    setStatVal('op-round',      '#' + s.round + stationLabel);
     setStatVal('op-status',     s.scanning ? '🟢 סורק' : '🔴 עצור');
     setStatVal('op-tags',       s.tags_count);
     setStatVal('op-mode-label', s.mode === 1 ? 'הקפות' : 'הגעה');
-    setStatVal('ev-round',      '#' + s.round);
+    setStatVal('ev-round',      '#' + s.round + stationLabel);
     setStatVal('ev-status',     s.scanning ? '🟢 סורק' : '🔴 עצור');
     setStatVal('ev-tags',       s.tags_count);
 

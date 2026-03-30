@@ -1220,7 +1220,8 @@ updateStatCards = function() {
   const st = scanning ? '🟢 סורק' : '🔴 עצור';
   const md = raceMode === 1 ? 'הקפות' : 'הגעה';
   const visible = getVisibleLeaderboard();
-  ['op-round','ev-round'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '#' + round; });
+  const stationLabel = activeGroup ? ` · ת${activeGroup}` : '';
+  ['op-round','ev-round'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '#' + round + stationLabel; });
   ['op-status','ev-status'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = st; });
   ['op-tags','ev-tags'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = visible.length; });
   const ml = document.getElementById('op-mode-label'); if (ml) ml.textContent = md;
