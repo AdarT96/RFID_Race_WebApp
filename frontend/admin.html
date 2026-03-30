@@ -163,6 +163,7 @@
           <div class="user-email">${escHtml(u.email)}</div>
           <div style="font-size:11px; margin-top:4px">
             <span class="badge badge-muted">${roleLabel(u.role)}</span>
+            <span class="badge badge-info">צוות ${u.team || '—'}</span>
             <span style="color:var(--text-dim); margin-right:6px; direction:ltr; display:inline-block">UID: ${u.uid.slice(0,8)}…</span>
           </div>
         </div>
@@ -182,11 +183,15 @@
       const statusBadge = u.role === 'admin'
         ? '<span class="badge badge-warning">מנהל</span>'
         : u.approved ? '<span class="badge badge-success">מאושר</span>' : '<span class="badge badge-danger">ממתין</span>';
+      const teamOptions = Array.from({length:15}, (_,i) => {
+        const v = i+1;
+        return `<option value="${v}" ${Number(u.team)===v ? 'selected':''}>${v}</option>`;
+      }).join('');
       return `
         <div class="user-row">
           <div class="user-info">
             <div class="user-name">${escHtml(u.name || 'לא ידוע')}</div>
-            <div class="user-email">${escHtml(u.email)}</div>
+            <div class="user-email">${escHtml(u.email)} · צוות ${u.team || '—'}</div>
           </div>
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
             ${statusBadge}
@@ -194,6 +199,10 @@
               <option value="operator"  ${u.role==='operator'  ? 'selected':''}>מגבש</option>
               <option value="evaluator" ${u.role==='evaluator' ? 'selected':''}>מעריך</option>
               <option value="admin"     ${u.role==='admin'     ? 'selected':''}>מנהל</option>
+            </select>
+            <select class="role-sel" onchange="changeTeam('${u.uid}', this.value)" title="צוות">
+              <option value="">—</option>
+              ${teamOptions}
             </select>
             ${u.uid !== currentAdmin?.uid ? `
             <button class="btn btn-ghost" onclick="deleteUserRecord('${u.uid}')"
@@ -214,6 +223,11 @@
   };
   window.changeRole = async (uid, newRole) => {
     try { await updateDoc(doc(db,'users',uid),{role:newRole}); showToast('תפקיד עודכן: '+roleLabel(newRole),'success'); }
+    catch(e) { showToast('שגיאה: '+e.message,'error'); }
+  };
+  window.changeTeam = async (uid, newTeam) => {
+    const teamNum = newTeam ? parseInt(newTeam) : null;
+    try { await updateDoc(doc(db,'users',uid),{team: teamNum || ''}); showToast('צוות עודכן: ' + (teamNum || '—'),'success'); }
     catch(e) { showToast('שגיאה: '+e.message,'error'); }
   };
   window.deleteUserRecord = async (uid) => {

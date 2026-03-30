@@ -470,10 +470,15 @@ function enterAs(role) {
   } else if (role === 'evaluator') {
     showPage('evaluator-page');
     document.getElementById('view-tabs').style.display = 'none';
+    // הסתר תצוגת מגבש — מעריך לא יכול לגשת
+    const opPage = document.getElementById('operator-page');
+    if (opPage) opPage.style.display = 'none';
   } else {
     showPage('operator-page');
-    document.getElementById('view-tabs').style.display = 'flex';
-    document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'operator-page'));
+    document.getElementById('view-tabs').style.display = 'none';
+    // הסתר תצוגת מעריך — מגבש לא יכול לגשת
+    const evPage = document.getElementById('evaluator-page');
+    if (evPage) evPage.style.display = 'none';
   }
 
   initAntennaButtons();
@@ -1029,7 +1034,7 @@ function ensureGroupSelector() {
     wrap.style.display = 'flex';
     wrap.style.alignItems = 'center';
     wrap.style.gap = '6px';
-    wrap.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">קבוצה:</span><select id="group-select" class="form-select" style="width:92px;padding:6px 10px"></select>';
+      wrap.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">תחנה:</span><select id="group-select" class="form-select" style="width:92px;padding:6px 10px"></select>';
     const badge = document.getElementById('role-badge');
     if (badge && badge.parentNode === navActions) navActions.insertBefore(wrap, badge);
     else navActions.prepend(wrap);

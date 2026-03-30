@@ -31,20 +31,20 @@ function setLoading(btnId, loading) {
   if (!btn) return;
   if (loading) { btn.dataset.label = btn.dataset.label || btn.textContent; }
   btn.disabled   = loading;
-  btn.innerHTML  = loading ? '<span class="spinner"></span> Please wait…' : btn.dataset.label;
+  btn.innerHTML  = loading ? '<span class="spinner"></span> אנא המתן…' : btn.dataset.label;
 }
 
 function firebaseErrMsg(code) {
   return ({
-    'auth/email-already-in-use': 'This email is already registered.',
-    'auth/invalid-email':        'Invalid email address.',
-    'auth/weak-password':        'Password is too weak (min 8 chars).',
-    'auth/user-not-found':       'No account found with this email.',
-    'auth/wrong-password':       'Incorrect password.',
-    'auth/invalid-credential':   'Incorrect email or password.',
-    'auth/too-many-requests':    'Too many attempts. Try again later.',
-    'auth/network-request-failed': 'Network error. Check your connection.',
-  })[code] || `Error (${code})`;
+    'auth/email-already-in-use': 'אימייל זה כבר רשום במערכת.',
+    'auth/invalid-email':        'כתובת אימייל לא תקינה.',
+    'auth/weak-password':        'סיסמה חלשה מדי (מינימום 8 תווים).',
+    'auth/user-not-found':       'לא נמצא חשבון עם אימייל זה.',
+    'auth/wrong-password':       'סיסמה שגויה.',
+    'auth/invalid-credential':   'אימייל או סיסמה שגויים.',
+    'auth/too-many-requests':    'יותר מדי ניסיונות. נסה שוב מאוחר יותר.',
+    'auth/network-request-failed': 'שגיאת רשת. בדוק את החיבור.',
+  })[code] || `שגיאה (${code})`;
 }
 
 // ── Registration ──────────────────────────────────────
@@ -54,13 +54,18 @@ async function registerUser() {
   const pass  = val('reg-pass');
   const pass2 = val('reg-pass2');
   const role  = val('reg-role');
+  const team  = val('reg-team');
 
-  if (!name || !email || !pass || !role)
-    return showMsg('reg-msg', 'Please fill in all fields.');
+  if (!name || !email || !pass || !role || !team)
+    return showMsg('reg-msg', 'יש למלא את כל השדות.');
   if (pass.length < 8)
-    return showMsg('reg-msg', 'Password must be at least 8 characters.');
+    return showMsg('reg-msg', 'הסיסמה חייבת להכיל לפחות 8 תווים.');
   if (pass !== pass2)
-    return showMsg('reg-msg', 'Passwords do not match.');
+    return showMsg('reg-msg', 'הסיסמאות אינן תואמות.');
+  
+  const teamNum = parseInt(team);
+  if (isNaN(teamNum) || teamNum < 1 || teamNum > 15)
+    return showMsg('reg-msg', 'מספר צוות חייב להיות בין 1 ל-15.');
 
   setLoading('reg-btn', true);
   try {
@@ -70,11 +75,12 @@ async function registerUser() {
       name,
       email,
       role,
+      team:      teamNum,
       approved:  false,
       createdAt: serverTimestamp()
     });
     $('reg-form').style.display = 'none';
-    showMsg('reg-msg', '✅ Account created! Waiting for admin approval.', 'success');
+    showMsg('reg-msg', '✅ החשבון נוצר! ממתין לאישור מנהל.', 'success');
     await signOut(auth);
   } catch(err) {
     showMsg('reg-msg', firebaseErrMsg(err.code));
@@ -87,7 +93,7 @@ async function registerUser() {
 async function loginUser() {
   const email = val('login-email');
   const pass  = val('login-pass');
-  if (!email || !pass) return showMsg('login-msg', 'Please enter email and password.');
+  if (!email || !pass) return showMsg('login-msg', 'יש להזין אימייל וסיסמה.');
 
   setLoading('login-btn', true);
   try {
@@ -96,16 +102,21 @@ async function loginUser() {
 
     if (!snap.exists()) {
       await signOut(auth);
-      return showMsg('login-msg', 'User record not found. Contact admin.');
+      return showMsg('login-msg', 'רשומת משתמש לא נמצאה. פנה למנהל.');
     }
 
     const data = snap.data();
     if (!data.approved && data.role !== 'admin') {
       await signOut(auth);
-      return showMsg('login-msg', '⏳ Account pending admin approval.', 'warning');
+      return showMsg('login-msg', '⏳ החשבון ממתין לאישור מנהל.', 'warning');
     }
 
-    window.location.href = data.role === 'admin' ? 'admin.html' : 'app.html';
+    // Route based on role
+    if (data.role === 'admin') {
+      window.location.href = 'admin.html';
+    } else {
+      window.location.href = 'app.html';
+    }
   } catch(err) {
     showMsg('login-msg', firebaseErrMsg(err.code));
   } finally {

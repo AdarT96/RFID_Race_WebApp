@@ -70,6 +70,11 @@ function doPost(e) {
       var seconds = totalSec % 60;
       var timeStr = minutes + ":" + ("0" + seconds).slice(-2);
 
+      var station = String(payload.station || "");
+      var evaluatorName = String(payload.evaluator_name || "");
+      var evaluatorTeam = String(payload.evaluator_team || "");
+      var comments = String(payload.comments || "");
+
       sheet.appendRow([
         Number(payload.place || 0),
         epc,
@@ -78,7 +83,11 @@ function doPost(e) {
         Number(payload.antenna || 0),
         Number(payload.rssi || 0),
         roundNum,
-        Utilities.formatDate(new Date(), TIMEZONE, TIMESTAMP_FORMAT)
+        Utilities.formatDate(new Date(), TIMEZONE, TIMESTAMP_FORMAT),
+        station,
+        evaluatorName,
+        evaluatorTeam,
+        comments
       ]);
 
       return buildResponse(true, "Written 1 row to 'תוצאות'");
@@ -132,8 +141,8 @@ function getOrCreateSheet(spreadsheet, sheetName) {
 
 function ensureSimpleHeaders_(sheet) {
   if (sheet.getLastRow() !== 0) return;
-  sheet.appendRow(["מקום", "EPC", "זמן (ms)", "זמן (mm:ss)", "אנטנה", "RSSI", "סבב", "תאריך"]);
-  sheet.getRange(1, 1, 1, 8)
+  sheet.appendRow(["מקום", "EPC", "זמן (ms)", "זמן (mm:ss)", "אנטנה", "RSSI", "סבב", "תאריך", "תחנה", "מעריך", "צוות מעריך", "הערות"]);
+  sheet.getRange(1, 1, 1, 12)
        .setFontWeight("bold")
        .setBackground("#4a86e8")
        .setFontColor("white");
@@ -222,7 +231,12 @@ function updateSimpleRow_(sheet, rowIndex, payload) {
   var antenna = (newAnt !== 0) ? newAnt : oldAnt;
   var rssi = (newRssi !== 0) ? newRssi : oldRssi;
 
-  sheet.getRange(rowIndex, 1, 1, 8).setValues([[
+  var station = String(payload.station || "");
+  var evaluatorName = String(payload.evaluator_name || "");
+  var evaluatorTeam = String(payload.evaluator_team || "");
+  var comments = String(payload.comments || "");
+
+  sheet.getRange(rowIndex, 1, 1, 12).setValues([[
     place,
     String(payload.epc || oldVals[1] || ""),
     bestFirst,
@@ -230,7 +244,11 @@ function updateSimpleRow_(sheet, rowIndex, payload) {
     antenna,
     rssi,
     roundNum,
-    Utilities.formatDate(new Date(), TIMEZONE, TIMESTAMP_FORMAT)
+    Utilities.formatDate(new Date(), TIMEZONE, TIMESTAMP_FORMAT),
+    station,
+    evaluatorName,
+    evaluatorTeam,
+    comments
   ]]);
 }
 

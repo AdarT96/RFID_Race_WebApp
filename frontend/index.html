@@ -86,6 +86,13 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label">צוות (1-15)</label>
+          <select id="reg-team" class="form-select">
+            <option value="">— בחר צוות —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">בחירת תפקיד</label>
 
           <label class="role-option" id="role-opt-operator">
@@ -102,7 +109,7 @@
             <span class="role-icon">📊</span>
             <div class="role-info">
               <h4>מעריך</h4>
-              <p>צפייה בטבלת דירוג חי, הוספת תיוגים והערות</p>
+              <p>צפייה בטבלת דירוג חי, הוספת תיוגים והערות (עד 3 מעריכים לצוות)</p>
             </div>
           </label>
         </div>
@@ -138,12 +145,20 @@
   }
 
   window.addEventListener('DOMContentLoaded', () => {
+    // populate role hidden select
     const sel = document.getElementById('reg-role');
     ['operator','evaluator'].forEach(r => {
       const o = document.createElement('option');
       o.value = r; o.text = r;
       sel.appendChild(o);
     });
+    // populate team selector (1-15)
+    const teamSel = document.getElementById('reg-team');
+    for (let i = 1; i <= 15; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = 'צוות ' + i;
+      teamSel.appendChild(o);
+    }
   });
 </script>
 </body>

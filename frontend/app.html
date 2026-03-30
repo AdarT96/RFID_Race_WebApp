@@ -88,7 +88,7 @@
     <button class="btn btn-warning" onclick="saveEspIp()" style="padding:6px 14px; font-size:13px">שמור</button>
   </div>
 
-  <!-- לשוניות מגבש / מעריך -->
+  <!-- לשוניות מגבש / מעריך — מנהל בלבד יכול לעבור -->
   <div class="tab-bar mb-16" id="view-tabs" style="display:none">
     <button class="tab-btn active" data-view="operator-view">🎮 מגבש</button>
     <button class="tab-btn"        data-view="evaluator-view">📊 מעריך</button>
@@ -340,15 +340,30 @@
   function initApp() {
     const role = currentUser.role;
     const roleLabels = { operator: 'מגבש', evaluator: 'מעריך', admin: 'מנהל' };
-    document.getElementById('user-role-badge').textContent = roleLabels[role] || role;
+    const teamLabel = currentUser.team ? ` · צוות ${currentUser.team}` : '';
+    document.getElementById('user-role-badge').textContent = (roleLabels[role] || role) + teamLabel;
 
     document.getElementById('esp-ip-input').value = espIp;
 
-    if (role === 'admin' || role === 'operator') {
+    // ── הגנת תפקידים: מגבש לא רואה מעריך ולהפך ──
+    if (role === 'admin') {
+      // מנהל יכול לעבור בין שני התצוגות
       showView('operator-view');
       document.getElementById('view-tabs').style.display = 'flex';
-    } else {
+    } else if (role === 'operator') {
+      showView('operator-view');
+      document.getElementById('view-tabs').style.display = 'none';
+      // הסתר לגמרי את תצוגת המעריך
+      const evView = document.getElementById('evaluator-view');
+      if (evView) evView.remove();
+    } else if (role === 'evaluator') {
       showView('evaluator-view');
+      document.getElementById('view-tabs').style.display = 'none';
+      // הסתר לגמרי את תצוגת המגבש
+      const opView = document.getElementById('operator-view');
+      if (opView) opView.remove();
+      // הסתר באנר ESP32 — מעריך לא צריך
+      document.getElementById('esp-config-banner').style.display = 'none';
     }
 
     initCommentPills();
@@ -358,6 +373,8 @@
 
   document.querySelectorAll('[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
+      // רק מנהל יכול לעבור בין תצוגות
+      if (currentUser?.role !== 'admin') return;
       document.querySelectorAll('[data-view]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       showView(btn.dataset.view);
@@ -851,7 +868,10 @@
           count: Number(r[3] || 1),
           mode: payload.mode || '',
           laps: Number(r[8] || 0),
-          comments: Array.isArray(r[7]) ? r[7].join('|') : (r[7] || '')
+          comments: Array.isArray(r[7]) ? r[7].join('|') : (r[7] || ''),
+          station: activeGroup || '',
+          evaluator_name: currentUser?.name || '',
+          evaluator_team: currentUser?.team || ''
         };
         if (APP_CONFIG.sheetsApiKey && !APP_CONFIG.sheetsApiKey.startsWith('YOUR_')) {
           bodyObj.key = APP_CONFIG.sheetsApiKey;
@@ -905,7 +925,7 @@
       wrap.style.display = 'flex';
       wrap.style.alignItems = 'center';
       wrap.style.gap = '6px';
-      wrap.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">קבוצה:</span><select id="group-select" class="form-select" style="width:96px;padding:6px 10px"></select>';
+      wrap.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">תחנה:</span><select id="group-select" class="form-select" style="width:96px;padding:6px 10px"></select>';
       const badge = document.getElementById('user-role-badge');
       if (badge && badge.parentNode === nav) nav.insertBefore(wrap, badge);
       else nav.prepend(wrap);
