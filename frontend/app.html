@@ -522,7 +522,10 @@
   };
   window.downloadCsv = (e) => {
     e.preventDefault();
-    const races = (allRacesCache || []).slice().sort((a,b)=>(a.round||0)-(b.round||0));
+    const races = (allRacesCache || [])
+      .filter(r => !activeGroup || !r.station || r.station === activeGroup)
+      .slice()
+      .sort((a,b)=>(a.round||0)-(b.round||0));
     if (races.length === 0) { showToast('אין נתונים לייצוא', 'error'); return; }
     let csv = 'Round,Place,Team,Participant,EPC,Mode,FirstSeen_ms,LastSeen_ms,Laps,Antenna,RSSI_dBm,Comments\r\n';
     races.forEach(race => {
@@ -624,10 +627,13 @@
 
   // ── חישוב היסטוריה לפי EPC מכל הסבבים ──────────────
   function buildEpcHistory(epc) {
-    const races = (allRacesCache || []).slice().sort((a,b)=>(a.round||0)-(b.round||0));
+    const races = (allRacesCache || [])
+      .filter(r => !activeGroup || !r.station || r.station === activeGroup)
+      .slice()
+      .sort((a,b)=>(a.round||0)-(b.round||0));
     const places = [];
     races.forEach(r => {
-      const tags = getFilteredRows(r.tags || []).slice();
+      const tags = (r.tags || []).slice();
       if (tags.length === 0) return;
       const hasLaps = tags.some(t => t.laps !== undefined && t.laps !== null);
       tags.sort((a, b) => {
@@ -779,7 +785,10 @@
   }
 
   function buildSheetsRowsFromRaces(allRounds = false) {
-    const races = (allRacesCache || []).slice().sort((a,b)=>(a.round||0)-(b.round||0));
+    const races = (allRacesCache || [])
+      .filter(r => !activeGroup || !r.station || r.station === activeGroup)
+      .slice()
+      .sort((a,b)=>(a.round||0)-(b.round||0));
     if (races.length === 0) {
       return {
         rows: [],
@@ -917,6 +926,7 @@
   }
 
   function getFilteredRows(rows) {
+    if (currentUser?.role !== 'admin') return rows || [];
     if (!activeGroup) return rows || [];
     return (rows || []).filter(r => normalizeGroup(r.teamId) === activeGroup);
   }
@@ -1051,7 +1061,10 @@
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     if (!activeGroup) { showToast('בחר תחנה להצגת גרף', 'error'); return; }
 
-    const races = (allRacesCache || []).slice().sort((a, b) => (a.round || 0) - (b.round || 0));
+    const races = (allRacesCache || [])
+      .filter(r => !activeGroup || !r.station || r.station === activeGroup)
+      .slice()
+      .sort((a, b) => (a.round || 0) - (b.round || 0));
     if (races.length === 0) return;
 
     let targetEpc = selectedParticipantId;
@@ -1063,7 +1076,7 @@
 
     const points = [];
     races.forEach(r => {
-      const tags = getFilteredRows(r.tags || []).slice();
+      const tags = (r.tags || []).slice();
       if (tags.length === 0) return;
       const hasLaps = tags.some(t => t.laps !== undefined && t.laps !== null);
       tags.sort((a, b) => {
