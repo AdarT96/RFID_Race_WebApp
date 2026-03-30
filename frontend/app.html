@@ -935,7 +935,7 @@
         localStorage.setItem('activeGroup', activeGroup);
         selectedParticipantId = null;
         const info = document.getElementById('selected-tag-info');
-        if (info) info.textContent = `קבוצה פעילה: ${activeGroup}. לא נבחר משתתף.`;
+        if (info) info.textContent = `תחנה פעילה: ${activeGroup}. לא נבחר משתתף.`;
         updateLeaderboard(leaderboardData);
       });
     }
@@ -948,7 +948,7 @@
       for (let i = 1; i <= 8; i++) groupsSet.add(String(i).padStart(2, '0'));
     }
     const groups = Array.from(groupsSet).filter(Boolean).sort();
-    sel.innerHTML = groups.map(g => `<option value="${g}">קבוצה ${g}</option>`).join('');
+    sel.innerHTML = groups.map(g => `<option value="${g}">תחנה ${g}</option>`).join('');
     if (!activeGroup || !groups.includes(activeGroup)) activeGroup = groups[0] || '01';
     sel.value = activeGroup;
     localStorage.setItem('activeGroup', activeGroup);
@@ -1010,7 +1010,7 @@
     const ctx = document.getElementById('chart-canvas');
     if (!ctx) return;
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-    if (!activeGroup) { showToast('בחר קבוצה להצגת גרף', 'error'); return; }
+    if (!activeGroup) { showToast('בחר תחנה להצגת גרף', 'error'); return; }
 
     const races = (allRacesCache || []).slice().sort((a, b) => (a.round || 0) - (b.round || 0));
     if (races.length === 0) return;
@@ -1020,7 +1020,7 @@
       const first = getFilteredRows(leaderboardData)[0];
       if (first) targetEpc = first.epc;
     }
-    if (!targetEpc) { showToast('אין משתתף נבחר בקבוצה זו', 'info'); return; }
+    if (!targetEpc) { showToast('אין משתתף נבחר בתחנה זו', 'info'); return; }
 
     const points = [];
     races.forEach(r => {
