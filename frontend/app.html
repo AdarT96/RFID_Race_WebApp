@@ -305,7 +305,7 @@
   let autoSheetsSyncTimer = null;
   let lastAutoSheetsHash = '';
   let sheetsSyncedKeys = new Set();
-  let roundBaseRaw = null;
+  // roundBaseRaw removed — we use ESP32 raw round directly
 
   // ── מצב חוץ ──────────────────────────────────────────
   (function() {
@@ -415,15 +415,9 @@
       ]);
       const status = await statusRes.json();
       const ant    = await antRes.json();
-      // קבע בסיס פעם אחת — הסבב שהבקר מדווח לפני לחיצת התחל
-      if (roundBaseRaw === null) {
-        // אם הבקר כבר ב-0 (אחרי clear) — הבסיס הוא 0, הסבב הראשון יהיה 1
-        roundBaseRaw = Number(status.round || 0);
-      }
-      const rawRound = Number(status.round || 0);
-      // mapped: מאתחלים ל-0; לחיצה ראשונה על START תעלה ל-1
-      const mappedRound = Math.max(0, rawRound - roundBaseRaw);
-      status.round_mapped = mappedRound;
+      // Use ESP32 raw round directly:
+      // After clear → round=0, first START → round=1, etc.
+      status.round_mapped = Number(status.round || 0);
       raceStatus = status;
       setConnected(true);
       updateStatusUI(status, ant);
@@ -536,8 +530,7 @@
   window.doClear = async () => {
     if (!confirm('⚠️ למחוק את כל נתוני המירוץ?')) return;
     await espPost('/clear'); showToast('הנתונים נמחקו', 'info');
-    // אפס את בסיס הסבב — אחרי clear הבקר חוזר ל-0
-    roundBaseRaw = null;
+    // אחרי clear הבקר חוזר ל-0
     sheetsSyncedKeys = new Set();
     lastAutoSheetsHash = '';
     lastTagCount = 0; leaderboardData = []; updateLeaderboard([]);
@@ -587,7 +580,7 @@
       triggerAutoSheetsSync('poll');
       // שמור לפי תחנה (station) = הצוות של המגבש המחובר
       const stationKey = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '00');
-      const mappedRound = (status.round_mapped ?? Math.max(0, Number(status.round || 0) - Number(roundBaseRaw || 0)));
+      const mappedRound = status.round_mapped ?? Number(status.round || 0);
       if (mappedRound < 1) return; // לפני START לא שומרים סבב 0
       const raceRef = doc(db, 'races', `race_${mappedRound}_station_${stationKey}`);
       await setDoc(raceRef, {
@@ -637,15 +630,26 @@
     const racesCol = collection(db, 'races');
     onSnapshot(query(racesCol), (snap) => {
       if (snap.empty) return;
+      // Collect ALL rounds' tags for the leaderboard (not just latest)
+      let allTags = [];
       let latest = null;
-      snap.forEach(d => { const data = d.data(); if (!latest || data.round > latest.round) latest = data; });
-      if (!latest || !latest.tags) return;
+      snap.forEach(d => {
+        const data = d.data();
+        if (!latest || (data.round || 0) > (latest.round || 0)) latest = data;
+        // Merge tags from all rounds
+        if (data.tags && data.tags.length > 0) {
+          data.tags.forEach(t => allTags.push({ ...t, _round: data.round, comments: t.comments || [] }));
+        }
+      });
+      if (allTags.length === 0) return;
       if (currentUser?.role !== 'operator' && currentUser?.role !== 'admin') {
-        leaderboardData = latest.tags.map(t => ({ ...t, comments: t.comments || [] }));
+        leaderboardData = allTags;
         updateLeaderboard(leaderboardData);
-        setStatVal('ev-round',  '#' + latest.round);
-        setStatVal('ev-status', latest.status === 'running' ? '🟢 סורק' : '🔴 עצור');
-        setStatVal('ev-tags',   latest.tags.length);
+        if (latest) {
+          setStatVal('ev-round',  '#' + (latest.round || 0));
+          setStatVal('ev-status', latest.status === 'running' ? '🟢 סורק' : '🔴 עצור');
+          setStatVal('ev-tags',   allTags.length);
+        }
       }
     });
   }
@@ -1046,23 +1050,29 @@
       const myStation = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '');
 
       let latest = null;
+      let allTags = [];
       snap.forEach(d => {
         const data = d.data();
         allRacesCache.push(data);
         // סנן לפי תחנה — אם למסמך יש station, השווה אותו
         if (myStation && data.station && data.station !== myStation) return;
         if (!latest || (data.round || 0) > (latest.round || 0)) latest = data;
+        // Collect tags from ALL rounds for this station
+        if (data.tags && data.tags.length > 0) {
+          data.tags.forEach(t => allTags.push({ ...t, _round: data.round, comments: t.comments || [] }));
+        }
       });
 
-      if (!latest || !latest.tags || latest.tags.length === 0) return;
+      if (allTags.length === 0) return;
       if (currentUser?.role !== 'operator' && currentUser?.role !== 'admin') {
-        // המעריך רואה את כל התגיות של התחנה שלו (ללא סינון נוסף לפי teamId)
-        leaderboardData = latest.tags.map(t => ({ ...t, comments: t.comments || [] }));
-        // עדכן ישירות ללא getFilteredRows — הנתונים כבר שייכים לתחנה
+        // המעריך רואה את כל התגיות מכל הסבבים של התחנה שלו
+        leaderboardData = allTags;
         _updateLeaderboardOrig(leaderboardData);
-        setStatVal('ev-round', '#' + latest.round);
-        setStatVal('ev-status', latest.status === 'running' ? '🟢 סורק' : '🔴 עצור');
-        setStatVal('ev-tags', latest.tags.length);
+        if (latest) {
+          setStatVal('ev-round', '#' + (latest.round || 0));
+          setStatVal('ev-status', latest.status === 'running' ? '🟢 סורק' : '🔴 עצור');
+          setStatVal('ev-tags', allTags.length);
+        }
         triggerAutoSheetsSync('firebase');
       }
     });
