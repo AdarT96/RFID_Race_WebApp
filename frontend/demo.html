@@ -508,6 +508,44 @@ document.querySelectorAll('[data-view]').forEach(btn => {
 });
 
 // ── סימולציית מירוץ ───────────────────────────────────
+// ── שיתוף נתונים בין טאבים דרך localStorage ──────────
+function broadcastRaceState() {
+  const state = {
+    scanning,
+    round,
+    startTime,
+    durationMs,
+    raceMode,
+    leaderboard: leaderboard.map(r => ({ ...r })),
+    ts: Date.now()
+  };
+  localStorage.setItem('demo_race_state', JSON.stringify(state));
+}
+
+function readRaceStateFromStorage() {
+  try {
+    const raw = localStorage.getItem('demo_race_state');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+// מאזין לשינויים מטאב אחר
+window.addEventListener('storage', (e) => {
+  if (e.key !== 'demo_race_state') return;
+  if (currentRole !== 'evaluator') return; // רק מעריך מקשיב
+  const state = readRaceStateFromStorage();
+  if (!state) return;
+  scanning   = state.scanning;
+  round      = state.round;
+  startTime  = state.startTime;
+  durationMs = state.durationMs;
+  raceMode   = state.raceMode;
+  leaderboard = state.leaderboard || [];
+  updateLeaderboard();
+  updateStatCards();
+});
+
 function simStart() {
   if (scanning) return;
   round++;
@@ -518,6 +556,7 @@ function simStart() {
   showToast('המירוץ התחיל — סבב #' + round, 'success');
   startUiTick();
   scheduleTagArrivals();
+  broadcastRaceState();
   if (DEMO_SHEETS_SYNC_ENABLED) {
     if (autoSheetsTimer) clearInterval(autoSheetsTimer);
     autoSheetsTimer = setInterval(() => simSyncSheets(true), 2500);
@@ -1132,6 +1171,7 @@ scheduleTagArrivals = function() {
       }
       updateLeaderboard();
       updateStatCards();
+      broadcastRaceState(); // שדר לטאב המעריך
     }, delay);
   });
 };
@@ -1224,6 +1264,7 @@ const _stopOrig = stopRace;
 stopRace = function() {
   const wasScanning = scanning;
   _stopOrig();
+  broadcastRaceState(); // שדר עצירה לטאב המעריך
   if (wasScanning) {
     const rows = getVisibleLeaderboard().map((r, i) => ({
       teamId: r.teamId,

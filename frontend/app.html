@@ -1017,22 +1017,24 @@
       allRacesCache = [];
       if (snap.empty) return;
 
-      // מיין לפי תחנה + סבב
+      // תחנה של המשתמש הנוכחי
       const myStation = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '');
 
       let latest = null;
       snap.forEach(d => {
         const data = d.data();
         allRacesCache.push(data);
-        // מעריך: קרא רק מסמכים של התחנה שלו
+        // סנן לפי תחנה — אם למסמך יש station, השווה אותו
         if (myStation && data.station && data.station !== myStation) return;
         if (!latest || (data.round || 0) > (latest.round || 0)) latest = data;
       });
 
       if (!latest || !latest.tags) return;
       if (currentUser?.role !== 'operator' && currentUser?.role !== 'admin') {
+        // המעריך רואה את כל התגיות של התחנה שלו (ללא סינון נוסף לפי teamId)
         leaderboardData = latest.tags.map(t => ({ ...t, comments: t.comments || [] }));
-        updateLeaderboard(leaderboardData);
+        // עדכן ישירות ללא getFilteredRows — הנתונים כבר שייכים לתחנה
+        _updateLeaderboardOrig(leaderboardData);
         setStatVal('ev-round', '#' + latest.round);
         setStatVal('ev-status', latest.status === 'running' ? '🟢 סורק' : '🔴 עצור');
         setStatVal('ev-tags', latest.tags.length);
