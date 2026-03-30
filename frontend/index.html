@@ -36,6 +36,7 @@
       <div class="icon">📡</div>
       <h1>מערכת תזמון RFID</h1>
       <p>מערכת תזמון תחרויות</p>
+      <p id="app-version" style="font-size:12px; color:var(--text-dim); margin-top:6px">גרסה: —</p>
     </div>
 
     <!-- לשוניות -->
@@ -158,6 +159,13 @@
       const o = document.createElement('option');
       o.value = i; o.textContent = 'צוות ' + i;
       teamSel.appendChild(o);
+    }
+
+    // הצגת גרסה מהקונפיג (לצורך מעקב דיפלוי)
+    const verEl = document.getElementById('app-version');
+    if (verEl) {
+      const ver = (window.APP_CONFIG && window.APP_CONFIG.appVersion) ? window.APP_CONFIG.appVersion : 'dev';
+      verEl.textContent = `גרסה: ${ver}`;
     }
   });
 </script>

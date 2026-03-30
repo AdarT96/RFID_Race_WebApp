@@ -19,6 +19,9 @@ const FIREBASE_CONFIG = {
 //  App Settings — Change these as needed
 // =====================================================
 const APP_CONFIG = {
+  // גרסת לקוח לתצוגה במסך התחברות (לעדכן בכל שינוי משמעותי)
+  appVersion: "v2026.03.30-01",
+
   // Default ESP32 IP (can be changed in the UI)
   defaultEsp32Ip: "192.168.4.1",
 
