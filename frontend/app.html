@@ -309,11 +309,19 @@
 
   // ── מצב חוץ ──────────────────────────────────────────
   (function() {
-    // ברירת מחדל: מצב חוץ (ניגודיות גבוהה) — מכובה רק אם המשתמש כיבה במפורש
     if (localStorage.getItem('outdoorMode') !== '0') {
       document.body.classList.add('outdoor-mode');
     }
   })();
+
+  // ── עזר: תחנה פעילה ──────────────────────────────────
+  function getStation() {
+    // מחזיר תחנה: מהמשתמש > מה-activeGroup > '00'
+    if (currentUser && currentUser.team) {
+      return String(currentUser.team).replace(/\D+/g,'').padStart(2,'0');
+    }
+    return activeGroup || '00';
+  }
 
   window.toggleOutdoorMode = () => {
     const on = document.body.classList.toggle('outdoor-mode');
@@ -407,8 +415,17 @@
       ]);
       const status = await statusRes.json();
       const ant    = await antRes.json();
-      if (roundBaseRaw === null) roundBaseRaw = Number(status.round || 0);
-      const mappedRound = Math.max(1, Number(status.round || 0) - Number(roundBaseRaw || 0));
+      // קבע בסיס פעם אחת — הסבב שהבקר מדווח לפני לחיצת התחל
+      if (roundBaseRaw === null) {
+        // אם הבקר כבר ב-0 (אחרי clear) — הבסיס הוא 0, הסבב הראשון יהיה 1
+        roundBaseRaw = Number(status.round || 0);
+      }
+      const rawRound = Number(status.round || 0);
+      // mapped: כמה סבבים עברו מאז שהאפליקציה נפתחה
+      // אם rawRound <= roundBaseRaw (לפני לחיצת התחל) → מציגים 1
+      const mappedRound = rawRound <= roundBaseRaw
+        ? 1
+        : rawRound - roundBaseRaw;
       status.round_mapped = mappedRound;
       raceStatus = status;
       setConnected(true);
@@ -522,6 +539,10 @@
   window.doClear = async () => {
     if (!confirm('⚠️ למחוק את כל נתוני המירוץ?')) return;
     await espPost('/clear'); showToast('הנתונים נמחקו', 'info');
+    // אפס את בסיס הסבב — אחרי clear הבקר חוזר ל-0
+    roundBaseRaw = null;
+    sheetsSyncedKeys = new Set();
+    lastAutoSheetsHash = '';
     lastTagCount = 0; leaderboardData = []; updateLeaderboard([]);
     setTimeout(pollEsp32, 300);
   };
@@ -791,54 +812,44 @@
     });
   }
 
-  function buildSheetsRowsFromRaces(allRounds = false) {
-    const races = (allRacesCache || [])
-      .filter(r => !activeGroup || !r.station || r.station === activeGroup)
+  // מחזיר מערך של { round, mode, station, tags[] } לכל הסבבים של התחנה הנוכחית
+  function getAllRacesForStation() {
+    const myStation = getStation();
+    return (allRacesCache || [])
+      .filter(r => !myStation || myStation === '00' || !r.station || r.station === myStation)
       .slice()
       .sort((a,b)=>(a.round||0)-(b.round||0));
-    if (races.length === 0) {
-      return {
-        rows: [],
-        round: raceStatus.round || 1,
-        mode: raceStatus.mode === 1 ? 'laps' : 'arrival'
-      };
-    }
+  }
 
-    if (!allRounds) {
-      const latest = races[races.length - 1];
-      const rows = getFilteredRows(latest.tags || []).map(r => [
-        r.epc,
-        r.firstMs || 0,
-        r.lastMs || 0,
-        r.totalReads || 1,
-        r.antenna || 0,
-        r.rssi || 0,
-        r.place || 0,
-        r.comments || [],
-        r.laps || 0
-      ]);
-      return { rows, round: latest.round || 1, mode: latest.mode || 'arrival' };
-    }
+  // בונה רשימת שורות לשליחה ל-Sheets
+  // כל שורה: [epc, firstMs, lastMs, count, antenna, rssi, place, comments[], laps, round, mode, station]
+  function buildSheetsPayloadRows(allRounds = false) {
+    const races = getAllRacesForStation();
+    if (races.length === 0) return [];
 
+    const myStation = getStation();
+    const targetRaces = allRounds ? races : [races[races.length - 1]];
     const rows = [];
-    races.forEach(rc => {
-      const tags = getFilteredRows(rc.tags || []);
+    targetRaces.forEach(rc => {
+      const tags = rc.tags || [];
       tags.forEach(t => {
-        rows.push([
-          t.epc,
-          t.firstMs || 0,
-          t.lastMs || 0,
-          t.totalReads || 1,
-          t.antenna || 0,
-          t.rssi || 0,
-          t.place || 0,
-          t.comments || [],
-          t.laps || 0
-        ]);
+        rows.push({
+          epc:       t.epc || '',
+          firstMs:   t.firstMs || 0,
+          lastMs:    t.lastMs || 0,
+          count:     t.totalReads || 1,
+          antenna:   t.antenna || 0,
+          rssi:      t.rssi || 0,
+          place:     t.place || 0,
+          comments:  Array.isArray(t.comments) ? t.comments.join('|') : (t.comments || ''),
+          laps:      t.laps || 0,
+          round:     rc.round || 1,
+          mode:      rc.mode || 'arrival',
+          station:   rc.station || myStation
+        });
       });
     });
-    const latest = races[races.length - 1];
-    return { rows, round: latest.round || 1, mode: latest.mode || 'arrival' };
+    return rows;
   }
 
   function triggerAutoSheetsSync(reason = 'auto') {
@@ -847,76 +858,71 @@
     autoSheetsSyncTimer = setTimeout(() => window.doSyncSheets(true, reason), 1200);
   }
 
-  window.doSyncSheets = async (isAuto = false, reason = 'manual') => {
+  window.doSyncSheets = async (isAuto = false) => {
     if (!APP_CONFIG.sheetsApiUrl || APP_CONFIG.sheetsApiUrl.startsWith('YOUR_')) {
       if (!isAuto) showToast('כתובת Google Sheets לא הוגדרה ב-firebase-config.js', 'error');
       return;
     }
 
-    const payload = buildSheetsRowsFromRaces(!isAuto);
-    if (!payload.rows || payload.rows.length === 0) {
+    // manual = כל הסבבים; auto = רק הסבב האחרון
+    const allRows = buildSheetsPayloadRows(!isAuto);
+    if (allRows.length === 0) {
       if (!isAuto) showToast('אין נתונים לסנכרון', 'error');
       return;
     }
 
-    const hash = JSON.stringify({ round: payload.round, mode: payload.mode, rows: payload.rows });
+    const hash = JSON.stringify(allRows);
     if (isAuto && hash === lastAutoSheetsHash) return;
     lastAutoSheetsHash = hash;
 
+    // סנן רק שורות שלא נשלחו עדיין (מפתח: round|epc|firstMs|comments)
+    const seenInThisSync = new Set();
+    const unsynced = allRows.filter(r => {
+      const key = `${r.round}|${r.epc}|${r.firstMs}|${r.comments}`;
+      if (seenInThisSync.has(key)) return false;
+      seenInThisSync.add(key);
+      return !sheetsSyncedKeys.has(key);
+    });
+
+    if (unsynced.length === 0) {
+      if (!isAuto) showToast('אין רשומות חדשות לסנכרון', 'info');
+      return;
+    }
+
     try {
-      const seenInThisSync = new Set();
-      const unsynced = payload.rows.filter((r) => {
-        const cmt = Array.isArray(r[7]) ? r[7].join('|') : (r[7] || '');
-        const key = `${Number(payload.round || 0)}|${String(r[0] || '')}|${Number(r[1] || 0)}|${cmt}`;
-        if (seenInThisSync.has(key)) return false;
-        seenInThisSync.add(key);
-        return !sheetsSyncedKeys.has(key);
-      });
-
-      if (unsynced.length === 0) {
-        if (!isAuto) showToast('אין רשומות חדשות לסנכרון', 'info');
-        return;
-      }
-
-      const requests = unsynced.map((r) => {
-        const stationForSheets = activeGroup || (currentUser?.team ? String(currentUser.team).replace(/\D+/g,'').padStart(2,'0') : '');
+      const requests = unsynced.map(r => {
         const bodyObj = {
-          place: Number(r[6] || 0),
-          epc: String(r[0] || ''),
-          first_ms: Number(r[1] || 0),
-          antenna: Number(r[4] || 0),
-          rssi: Number(r[5] || 0),
-          round: Number(payload.round || 1),
-          last_ms: Number(r[2] || 0),
-          count: Number(r[3] || 1),
-          mode: payload.mode || '',
-          laps: Number(r[8] || 0),
-          comments: Array.isArray(r[7]) ? r[7].join('|') : (r[7] || ''),
-          station: stationForSheets,
+          place:          Number(r.place),
+          epc:            String(r.epc),
+          first_ms:       Number(r.firstMs),
+          last_ms:        Number(r.lastMs),
+          antenna:        Number(r.antenna),
+          rssi:           Number(r.rssi),
+          round:          Number(r.round),
+          count:          Number(r.count),
+          mode:           String(r.mode),
+          laps:           Number(r.laps),
+          comments:       String(r.comments),
+          station:        String(r.station),
           evaluator_name: currentUser?.name || '',
           evaluator_team: currentUser?.team || ''
         };
         if (APP_CONFIG.sheetsApiKey && !APP_CONFIG.sheetsApiKey.startsWith('YOUR_')) {
           bodyObj.key = APP_CONFIG.sheetsApiKey;
         }
-        return fetch(APP_CONFIG.sheetsApiUrl, {
-          method: 'POST',
-          body: JSON.stringify(bodyObj)
-        });
+        return fetch(APP_CONFIG.sheetsApiUrl, { method: 'POST', body: JSON.stringify(bodyObj) });
       });
 
       const results = await Promise.all(requests);
-      const failed = results.filter(r => !r.ok).length;
+      const failed = results.filter(res => !res.ok).length;
       results.forEach((res, i) => {
         if (res.ok) {
           const r = unsynced[i];
-          const cmt = Array.isArray(r[7]) ? r[7].join('|') : (r[7] || '');
-          const key = `${Number(payload.round || 0)}|${String(r[0] || '')}|${Number(r[1] || 0)}|${cmt}`;
-          sheetsSyncedKeys.add(key);
+          sheetsSyncedKeys.add(`${r.round}|${r.epc}|${r.firstMs}|${r.comments}`);
         }
       });
       if (!isAuto) {
-        if (failed === 0) showToast(`סונכרנו ${results.length} רשומות חדשות ל-Google Sheets ✓`, 'success');
+        if (failed === 0) showToast(`סונכרנו ${results.length} רשומות ל-Google Sheets ✓`, 'success');
         else showToast(`סונכרנו חלקית: ${results.length - failed}/${results.length}`, 'error');
       }
     } catch(e) {
