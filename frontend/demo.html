@@ -541,7 +541,10 @@ window.addEventListener('storage', (e) => {
   startTime  = state.startTime;
   durationMs = state.durationMs;
   raceMode   = state.raceMode;
-  leaderboard = state.leaderboard || [];
+  // לא למחוק טבלה בתחילת סבב חדש עד שמגיעה תגית ראשונה
+  if (!(state.scanning && (!state.leaderboard || state.leaderboard.length === 0))) {
+    leaderboard = state.leaderboard || [];
+  }
   updateLeaderboard();
   updateStatCards();
 });

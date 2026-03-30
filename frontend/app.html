@@ -1031,7 +1031,7 @@
         if (!latest || (data.round || 0) > (latest.round || 0)) latest = data;
       });
 
-      if (!latest || !latest.tags) return;
+      if (!latest || !latest.tags || latest.tags.length === 0) return;
       if (currentUser?.role !== 'operator' && currentUser?.role !== 'admin') {
         // המעריך רואה את כל התגיות של התחנה שלו (ללא סינון נוסף לפי teamId)
         leaderboardData = latest.tags.map(t => ({ ...t, comments: t.comments || [] }));
