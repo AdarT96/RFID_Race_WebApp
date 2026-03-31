@@ -553,11 +553,9 @@ function saveCurrentRoundSnapshot() {
   // שמור snapshot של הסבב הנוכחי אם יש נתונים ועדיין לא נשמר
   if (round < 1) return;
   const visRows = getVisibleLeaderboard();
-  console.log('[SNAP] saveCurrentRoundSnapshot round=' + round + ' visRows=' + visRows.length + ' activeGroup=' + activeGroup + ' leaderboard=' + leaderboard.length);
   if (visRows.length === 0) return;
   roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
   const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === round);
-  console.log('[SNAP] alreadySaved=' + alreadySaved + ' existing rounds=' + JSON.stringify((roundSnapshotsByGroup[activeGroup]||[]).map(s=>s.round)));
   if (!alreadySaved) {
     roundSnapshotsByGroup[activeGroup].push({
       round,
@@ -571,16 +569,13 @@ function saveCurrentRoundSnapshot() {
         laps: r.laps || 1
       }))
     });
-    console.log('[SNAP] SAVED round=' + round + ' rows=' + visRows.length);
   }
 }
 
 function simStart() {
   if (scanning) return;
-  console.log('[START] before saveSnapshot: round=' + round + ' leaderboard=' + leaderboard.length + ' activeGroup=' + activeGroup);
   // שמור snapshot של הסבב הקודם לפני ניקוי
   saveCurrentRoundSnapshot();
-  console.log('[START] after saveSnapshot: snapshots=' + JSON.stringify((roundSnapshotsByGroup[activeGroup]||[]).map(s=>s.round)));
   round = round + 1;
   leaderboard = [];
   scanning  = true;
@@ -1174,7 +1169,6 @@ function getVisibleLeaderboard() {
     .filter(r => r.teamId === activeGroup)
     .slice()
     .sort((a, b) => raceMode === 1 ? (b.laps - a.laps || a.lastMs - b.lastMs) : a.firstMs - b.firstMs);
-  // debug: log only when called from saveCurrentRoundSnapshot (via stack)
   return result;
 }
 
@@ -1321,15 +1315,22 @@ updateLeaderboard = function() {
   });
 };
 
-const _stopOrig = stopRace;
 stopRace = function() {
   const wasScanning = scanning;
-  console.log('[STOP] wasScanning=' + wasScanning + ' round=' + round + ' leaderboard=' + leaderboard.length);
   // שמור snapshot לפני שינוי מצב
   if (wasScanning) saveCurrentRoundSnapshot();
-  console.log('[STOP] after saveSnapshot: snapshots=' + JSON.stringify((roundSnapshotsByGroup[activeGroup]||[]).map(s=>s.round)));
-  _stopOrig();
-  broadcastRaceState(); // שדר עצירה לטאב המעריך
+  if (!wasScanning && leaderboard.length === 0) return;
+  scanning = false;
+  if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
+  if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
+  updateStatCards();
+  updateLeaderboard();
+  simSyncSheets(true);
+  const btnStart = document.getElementById('btn-start');
+  const btnStop  = document.getElementById('btn-stop');
+  if (btnStart) btnStart.disabled = false;
+  if (btnStop)  btnStop.disabled  = false;
+  broadcastRaceState();
 };
 
 buildChart = function() {
