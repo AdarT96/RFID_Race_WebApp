@@ -1107,107 +1107,114 @@
     if (!ctx) return;
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-    // איסוף כל הסבבים מ-allRacesCache (Firebase) בשילוב עם leaderboardData (ESP32 CSV)
+    // סטטיסטיקה מסבב ראשון ועד נוכחי (לפי תחנה פעילה)
     const races = (allRacesCache || [])
       .filter(r => !activeGroup || !r.station || r.station === activeGroup)
       .slice()
       .sort((a, b) => (a.round || 0) - (b.round || 0));
 
-    // אם אין מירוצים ב-cache, נשתמש ב-leaderboardData ישירות (מצב operator ללא Firebase)
-    if (races.length === 0 && leaderboardData.length > 0) {
-      // fallback: גרף עמודות של כל המשתתפים מ-leaderboardData
-      const filtered = getFilteredRows(leaderboardData);
-      if (filtered.length === 0) { showToast('אין נתונים בתחנה זו', 'info'); return; }
-      const labels  = filtered.map(r => `ס${r._round||r.round||'?'} ק${r.teamId} מ${r.participantId}`);
-      const hasLaps = filtered.some(r => r.laps !== undefined);
-      const dataVals = hasLaps ? filtered.map(r=>r.laps||0) : filtered.map(r=>(r.firstMs||0)/1000);
-      const colors   = filtered.map((_,i)=>`hsl(${(i*137)%360},70%,55%)`);
-      chartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: hasLaps?'הקפות':'זמן (שניות)', data:dataVals, backgroundColor:colors, borderRadius:6, borderWidth:0 }] },
-        options: {
-          responsive:true, maintainAspectRatio:false,
-          plugins: { legend:{display:false} },
-          scales: {
-            y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#94a3b8'}},
-            x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:10}}}
-          }
-        }
-      });
+    if (races.length === 0) {
+      showToast('אין נתונים להצגה בגרף', 'info');
       return;
     }
 
-    if (races.length === 0) { showToast('אין נתונים להצגה', 'info'); return; }
+    const labels = [];
+    const participantsPerRound = [];
+    const leaderMetric = [];
+    const isLapsModePerRound = [];
 
-    // אם יש משתתף נבחר — גרף קו של מיקום לאורך סבבים
-    let targetEpc = selectedParticipantId;
-    if (!targetEpc) {
-      const first = getFilteredRows(leaderboardData)[0];
-      if (first) targetEpc = first.epc;
+    races.forEach(r => {
+      const tags = getFilteredRows(r.tags || []);
+      if (!tags.length) return;
+
+      const hasLaps = tags.some(t => t.laps !== undefined && t.laps !== null);
+      const roundNum = Number(r.round || 0);
+
+      labels.push(`סבב ${roundNum}`);
+      participantsPerRound.push(tags.length);
+      isLapsModePerRound.push(hasLaps);
+
+      if (hasLaps) {
+        // מצב הקפות: מדד מוביל = מקסימום הקפות בסבב
+        const bestLaps = tags.reduce((m, t) => Math.max(m, Number(t.laps || 0)), 0);
+        leaderMetric.push(bestLaps);
+      } else {
+        // מצב הגעה: מדד מוביל = זמן ראשון הטוב ביותר (בשניות)
+        const bestMs = tags.reduce((m, t) => {
+          const v = Number(t.firstMs || 0);
+          return (m === null || v < m) ? v : m;
+        }, null);
+        leaderMetric.push(bestMs !== null ? (bestMs / 1000) : 0);
+      }
+    });
+
+    if (!labels.length) {
+      showToast('אין נתונים להצגה בגרף', 'info');
+      return;
     }
 
-    if (targetEpc && races.length > 1) {
-      // גרף קו: מיקום המשתתף לאורך סבבים
-      const points = [];
-      races.forEach(r => {
-        const tags = (r.tags || []).slice();
-        if (tags.length === 0) return;
-        const hasLaps = tags.some(t => t.laps !== undefined && t.laps !== null);
-        tags.sort((a, b) => {
-          if (hasLaps) {
-            const lD = Number(b.laps||0) - Number(a.laps||0);
-            return lD !== 0 ? lD : Number(a.lastMs||0) - Number(b.lastMs||0);
-          }
-          return Number(a.firstMs||0) - Number(b.firstMs||0);
-        });
-        const idx = tags.findIndex(t => t.epc === targetEpc);
-        if (idx >= 0) points.push({ round: r.round, place: idx + 1 });
-      });
-      if (points.length > 0) {
-        chartInstance = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: points.map(p => `סבב ${p.round}`),
-            datasets: [{
-              label: 'מיקום לאורך סבבים',
-              data: points.map(p => p.place),
-              borderColor: '#60a5fa',
-              backgroundColor: 'rgba(96,165,250,0.15)',
-              fill: true, tension: 0.25, pointRadius: 4
-            }]
+    const hasAnyLapsRound = isLapsModePerRound.some(Boolean);
+    chartInstance = new Chart(ctx, {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'מספר משתתפים בסבב',
+            data: participantsPerRound,
+            backgroundColor: 'rgba(96,165,250,0.35)',
+            borderColor: '#60a5fa',
+            borderWidth: 1,
+            yAxisID: 'y'
           },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: {
-              y: { reverse: true, beginAtZero: false, ticks: { precision: 0, color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-              x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+          {
+            type: 'line',
+            label: hasAnyLapsRound ? 'תוצאת מוביל (הקפות/שניות)' : 'זמן מוביל (שניות)',
+            data: leaderMetric,
+            borderColor: '#34d399',
+            backgroundColor: 'rgba(52,211,153,0.2)',
+            tension: 0.25,
+            fill: false,
+            pointRadius: 4,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, labels: { color: '#94a3b8' } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const idx = ctx.dataIndex;
+                if (ctx.datasetIndex === 0) return `משתתפים: ${ctx.raw}`;
+                return isLapsModePerRound[idx]
+                  ? `מוביל בסבב: ${ctx.raw} הקפות`
+                  : `מוביל בסבב: ${Number(ctx.raw).toFixed(2)} שניות`;
+              }
             }
           }
-        });
-        return;
-      }
-    }
-
-    // fallback: גרף עמודות — כל המשתתפים מכל הסבבים
-    const allTags = [];
-    races.forEach(r => {
-      (r.tags || []).forEach(t => allTags.push({ ...t, _round: r.round }));
-    });
-    const filtered = getFilteredRows(allTags);
-    if (filtered.length === 0) { showToast('אין נתונים בתחנה זו', 'info'); return; }
-    const labels  = filtered.map(r => `ס${r._round||'?'} ק${r.teamId||'?'} מ${r.participantId||'?'}`);
-    const hasLaps = filtered.some(r => r.laps !== undefined && r.laps !== null);
-    const dataVals = hasLaps ? filtered.map(r=>Number(r.laps)||0) : filtered.map(r=>(Number(r.firstMs)||0)/1000);
-    const colors   = filtered.map((_,i)=>`hsl(${(i*137)%360},70%,55%)`);
-    chartInstance = new Chart(ctx, {
-      type: 'bar',
-      data: { labels, datasets: [{ label: hasLaps?'הקפות':'זמן (שניות)', data:dataVals, backgroundColor:colors, borderRadius:6, borderWidth:0 }] },
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins: { legend:{display:false} },
+        },
         scales: {
-          y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#94a3b8'}},
-          x:{grid:{display:false},ticks:{color:'#94a3b8',font:{size:10}}}
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: { color: '#94a3b8' },
+            title: { display: true, text: 'משתתפים', color: '#94a3b8' }
+          },
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: { color: '#94a3b8' },
+            title: { display: true, text: hasAnyLapsRound ? 'תוצאת מוביל' : 'שניות', color: '#94a3b8' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#94a3b8' }
+          }
         }
       }
     });
