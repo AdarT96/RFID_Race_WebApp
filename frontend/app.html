@@ -1107,11 +1107,30 @@
     if (!ctx) return;
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-    // סטטיסטיקה מסבב ראשון ועד נוכחי (לפי תחנה פעילה)
-    const races = (allRacesCache || [])
+    // סטטיסטיקה מסבב ראשון ועד נוכחי.
+    // קודם ננסה לפי תחנה פעילה, ואם אין נתונים - ניפול חזרה לכל המסמכים.
+    let races = (allRacesCache || [])
       .filter(r => !activeGroup || !r.station || r.station === activeGroup)
       .slice()
       .sort((a, b) => (a.round || 0) - (b.round || 0));
+
+    if (races.length === 0) {
+      races = (allRacesCache || [])
+        .slice()
+        .sort((a, b) => (a.round || 0) - (b.round || 0));
+    }
+
+    // fallback נוסף: בנייה מתוך leaderboardData במקרה ש-Firebase cache עדיין לא הוזן
+    if (races.length === 0 && leaderboardData.length > 0) {
+      const byRound = new Map();
+      (leaderboardData || []).forEach(t => {
+        const r = Number(t._round || t.round || 0);
+        if (!r) return;
+        if (!byRound.has(r)) byRound.set(r, { round: r, tags: [] });
+        byRound.get(r).tags.push(t);
+      });
+      races = Array.from(byRound.values()).sort((a, b) => (a.round || 0) - (b.round || 0));
+    }
 
     if (races.length === 0) {
       showToast('אין נתונים להצגה בגרף', 'info');
@@ -1155,6 +1174,7 @@
 
     const hasAnyLapsRound = isLapsModePerRound.some(Boolean);
     chartInstance = new Chart(ctx, {
+      type: 'bar',
       data: {
         labels,
         datasets: [
