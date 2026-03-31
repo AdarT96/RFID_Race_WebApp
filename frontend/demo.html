@@ -551,6 +551,29 @@ window.addEventListener('storage', (e) => {
 
 function simStart() {
   if (scanning) return;
+  // שמור snapshot של הסבב הקודם לפני ניקוי (אם היה מירוץ פעיל שנעצר)
+  if (leaderboard.length > 0) {
+    const prevRows = getVisibleLeaderboard().map((r, i) => ({
+      teamId: r.teamId,
+      participantId: r.participantId,
+      epc: r.epc,
+      place: i + 1,
+      firstMs: r.firstMs,
+      laps: r.laps || 1
+    }));
+    if (prevRows.length > 0) {
+      roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
+      // הוסף רק אם הסבב הזה עדיין לא קיים ב-snapshots
+      const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === round);
+      if (!alreadySaved) {
+        roundSnapshotsByGroup[activeGroup].push({
+          round,
+          mode: raceMode === 1 ? 'laps' : 'arrival',
+          rows: prevRows
+        });
+      }
+    }
+  }
   round = round + 1;
   leaderboard = [];
   scanning  = true;
