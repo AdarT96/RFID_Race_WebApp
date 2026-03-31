@@ -553,9 +553,11 @@ function saveCurrentRoundSnapshot() {
   // שמור snapshot של הסבב הנוכחי אם יש נתונים ועדיין לא נשמר
   if (round < 1) return;
   const visRows = getVisibleLeaderboard();
+  console.log('[SNAP] saveCurrentRoundSnapshot round=' + round + ' visRows=' + visRows.length + ' activeGroup=' + activeGroup + ' leaderboard=' + leaderboard.length);
   if (visRows.length === 0) return;
   roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
   const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === round);
+  console.log('[SNAP] alreadySaved=' + alreadySaved + ' existing rounds=' + JSON.stringify((roundSnapshotsByGroup[activeGroup]||[]).map(s=>s.round)));
   if (!alreadySaved) {
     roundSnapshotsByGroup[activeGroup].push({
       round,
@@ -569,6 +571,7 @@ function saveCurrentRoundSnapshot() {
         laps: r.laps || 1
       }))
     });
+    console.log('[SNAP] SAVED round=' + round + ' rows=' + visRows.length);
   }
 }
 
