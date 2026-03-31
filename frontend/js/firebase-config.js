@@ -20,7 +20,7 @@ const FIREBASE_CONFIG = {
 // =====================================================
 const APP_CONFIG = {
   // גרסת לקוח לתצוגה במסך התחברות (לעדכן בכל שינוי משמעותי)
-  appVersion: "v2026.03.30-01",
+  appVersion: "v2026.03.31-01",
 
   // Default ESP32 IP (can be changed in the UI)
   defaultEsp32Ip: "192.168.4.1",
@@ -39,7 +39,7 @@ const APP_CONFIG = {
   participantDigits: 4,
 
   // Google Apps Script endpoint (deploy as web app, paste URL here)
-  sheetsApiUrl: "https://script.google.com/macros/s/AKfycbyEHqapV-sJ8qVaRzNvX4dOrELf8mQeSRHJKXJSIKBjAd4_4eJjzDx8H3bnb027QFgooQ/exec",
+  sheetsApiUrl: "https://script.google.com/macros/s/AKfycby2g7g0k62h0Brd8o5bgW3hktdGNXbWfAJkgBoMU3xGvmmid7T1wyZwyLcs8Bs4y138Pw/exec",
   sheetsApiKey: "YOUR_SECRET_KEY_HERE",
   sheetsDeviceName: "ESP_01",
 
