@@ -1170,10 +1170,12 @@ function buildMockGroupPool(groupId) {
 }
 
 function getVisibleLeaderboard() {
-  return leaderboard
+  const result = leaderboard
     .filter(r => r.teamId === activeGroup)
     .slice()
     .sort((a, b) => raceMode === 1 ? (b.laps - a.laps || a.lastMs - b.lastMs) : a.firstMs - b.firstMs);
+  // debug: log only when called from saveCurrentRoundSnapshot (via stack)
+  return result;
 }
 
 function setActiveGroup(groupId) {
