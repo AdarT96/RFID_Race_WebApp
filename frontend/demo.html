@@ -1328,12 +1328,31 @@ buildChart = function() {
   if (!ctx) return;
   if (chartInst) { chartInst.destroy(); chartInst = null; }
 
+  // שמור snapshot של הסבב הנוכחי לפני הצגת הגרף (אם עדיין לא נשמר)
+  saveCurrentRoundSnapshot();
+
   const rows = getVisibleLeaderboard();
   // בחר משתתף: נבחר ידנית > ראשון בטבלה
   const selected = (selectedEpc && rows.find(r => r.epc === selectedEpc)) || rows[0];
 
   if (!selected) {
-    showToast('אין נתוני משתתפים להצגה', 'info');
+    // אם אין נתונים חיים, נסה לבנות מהסנאפשוטים
+    const allSnaps = roundSnapshotsByGroup[activeGroup] || [];
+    if (allSnaps.length === 0) {
+      showToast('אין נתוני משתתפים להצגה', 'info');
+      return;
+    }
+    // בחר משתתף מהסנאפשוט האחרון
+    const lastSnap = allSnaps[allSnaps.length - 1];
+    const firstRow = (lastSnap.rows || [])[0];
+    if (!firstRow) { showToast('אין נתוני משתתפים להצגה', 'info'); return; }
+    const epcToShow = selectedEpc || firstRow.epc;
+    const allPoints = allSnaps.map(s => {
+      const found = s.rows.find(p => p.epc === epcToShow);
+      return found ? { round: s.round, place: found.place } : null;
+    }).filter(Boolean).sort((a, b) => a.round - b.round);
+    if (allPoints.length === 0) { showToast('אין נתוני משתתפים להצגה', 'info'); return; }
+    _renderLineChart(ctx, allPoints, firstRow.participantId);
     return;
   }
 
@@ -1362,16 +1381,19 @@ buildChart = function() {
 
   // מיין לפי סבב
   points.sort((a, b) => a.round - b.round);
+  _renderLineChart(ctx, points, selected.participantId);
+};
 
+function _renderLineChart(ctx, points, participantId) {
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
   const labels = points.map(p => `סבב ${p.round}`);
   const values = points.map(p => p.place);
-
   chartInst = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label: `מיקום משתתף ${selected.participantId}`,
+        label: `מיקום משתתף ${participantId}`,
         data: values,
         borderColor: '#60a5fa',
         backgroundColor: 'rgba(96,165,250,0.15)',
@@ -1400,7 +1422,7 @@ buildChart = function() {
       }
     }
   });
-};
+}
 
 // ── חשיפה לגלובל ──────────────────────────────────────
 window.enterAs           = enterAs;
