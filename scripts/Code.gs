@@ -232,17 +232,18 @@ function findSimpleRowByEpcRound_(sheet, epc, round) {
 }
 
 function updateSimpleRow_(sheet, rowIndex, payload) {
-  var oldVals = sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
+  // Read all 12 columns (not just 8!)
+  var oldVals = sheet.getRange(rowIndex, 1, 1, 12).getValues()[0];
 
   var oldPlace = Number(oldVals[0] || 0);
   var oldFirst = Number(oldVals[2] || 0);
-  var oldAnt = Number(oldVals[4] || 0);
-  var oldRssi = Number(oldVals[5] || 0);
+  var oldAnt   = Number(oldVals[4] || 0);
+  var oldRssi  = Number(oldVals[5] || 0);
 
   var newPlace = Number(payload.place || 0);
   var newFirst = Number(payload.first_ms || 0);
-  var newAnt = Number(payload.antenna || 0);
-  var newRssi = Number(payload.rssi || 0);
+  var newAnt   = Number(payload.antenna || 0);
+  var newRssi  = Number(payload.rssi || 0);
   var roundNum = Number(payload.round || 0);
 
   // Keep earliest first_ms
@@ -251,20 +252,30 @@ function updateSimpleRow_(sheet, rowIndex, payload) {
     bestFirst = newFirst;
   }
   var totalSec = Math.floor(bestFirst / 1000);
-  var minutes = Math.floor(totalSec / 60);
-  var seconds = totalSec % 60;
-  var timeStr = minutes + ":" + ("0" + seconds).slice(-2);
+  var minutes  = Math.floor(totalSec / 60);
+  var seconds  = totalSec % 60;
+  var timeStr  = minutes + ":" + ("0" + seconds).slice(-2);
 
-  var place = (newPlace > 0) ? newPlace : oldPlace;
+  var place   = (newPlace > 0) ? newPlace : oldPlace;
   var antenna = (newAnt !== 0) ? newAnt : oldAnt;
-  var rssi = (newRssi !== 0) ? newRssi : oldRssi;
+  var rssi    = (newRssi !== 0) ? newRssi : oldRssi;
 
-  var station = String(payload.station || oldVals[8] || "");
-  var evaluatorName = String(payload.evaluator_name || oldVals[9] || "");
+  var station       = String(payload.station       || oldVals[8]  || "");
+  var evaluatorName = String(payload.evaluator_name || oldVals[9]  || "");
   var evaluatorTeam = String(payload.evaluator_team || oldVals[10] || "");
-  var comments = String((payload.comments !== undefined && payload.comments !== null && String(payload.comments) !== '')
-    ? payload.comments
-    : (oldVals[11] || ""));
+
+  // Merge comments: combine old + new, deduplicate, pipe-separated
+  var oldComments = String(oldVals[11] || "");
+  var newComments = String(payload.comments || "");
+  var merged = oldComments;
+  if (newComments) {
+    var oldArr = oldComments ? oldComments.split("|").map(function(s){ return s.trim(); }) : [];
+    var newArr = newComments.split("|").map(function(s){ return s.trim(); });
+    newArr.forEach(function(tag) {
+      if (tag && oldArr.indexOf(tag) === -1) oldArr.push(tag);
+    });
+    merged = oldArr.join("|");
+  }
 
   sheet.getRange(rowIndex, 1, 1, 12).setValues([[
     place,
@@ -278,7 +289,7 @@ function updateSimpleRow_(sheet, rowIndex, payload) {
     station,
     evaluatorName,
     evaluatorTeam,
-    comments
+    merged
   ]]);
 }
 

@@ -578,29 +578,33 @@ window.addEventListener('storage', (e) => {
 });
 
 function saveCurrentRoundSnapshot() {
-  // שמור snapshot של הסבב הנוכחי אם יש נתונים ועדיין לא נשמר
+  // שמור/עדכן snapshot של הסבב הנוכחי
   if (round < 1) return;
   const visRows = getVisibleLeaderboard();
   if (visRows.length === 0) return;
   roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
-  const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === round);
-  if (!alreadySaved) {
-    roundSnapshotsByGroup[activeGroup].push({
-      round,
-      mode: raceMode === 1 ? 'laps' : 'arrival',
-      rows: visRows.map((r, i) => ({
-        teamId: r.teamId,
-        participantId: r.participantId,
-        epc: r.epc,
-        place: i + 1,
-        firstMs: r.firstMs,
-        lastMs: r.lastMs || r.firstMs,
-        laps: r.laps || 1,
-        rssi: r.rssi || 0,
-        antenna: r.antenna || 0,
-        comments: (r.comments || []).slice()
-      }))
-    });
+  const existingIdx = roundSnapshotsByGroup[activeGroup].findIndex(s => s.round === round);
+  const newSnap = {
+    round,
+    mode: raceMode === 1 ? 'laps' : 'arrival',
+    rows: visRows.map((r, i) => ({
+      teamId: r.teamId,
+      participantId: r.participantId,
+      epc: r.epc,
+      place: i + 1,
+      firstMs: r.firstMs,
+      lastMs: r.lastMs || r.firstMs,
+      laps: r.laps || 1,
+      rssi: r.rssi || 0,
+      antenna: r.antenna || 0,
+      comments: (r.comments || []).slice()
+    }))
+  };
+  if (existingIdx >= 0) {
+    // עדכן snapshot קיים (לדוגמא כשנוספו תיוגים)
+    roundSnapshotsByGroup[activeGroup][existingIdx] = newSnap;
+  } else {
+    roundSnapshotsByGroup[activeGroup].push(newSnap);
   }
 }
 
