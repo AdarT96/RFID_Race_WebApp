@@ -578,8 +578,7 @@ function saveCurrentRoundSnapshot() {
 
 function simStart() {
   if (scanning) return;
-  // שמור snapshot של הסבב הקודם לפני ניקוי (עם מספר הסבב הנוכחי)
-  if (round >= 1 && leaderboard.length > 0) saveCurrentRoundSnapshot();
+  // stopRace() כבר שמר snapshot של הסבב הקודם — אין צורך לשמור שוב כאן
   round = round + 1;
   leaderboard = [];
   scanning  = true;
