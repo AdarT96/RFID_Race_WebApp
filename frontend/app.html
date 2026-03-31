@@ -306,7 +306,8 @@
   let lastAutoSheetsHash = '';
   let sheetsSyncedKeys = new Set();
   let sheetsSyncInProgress = false;
-  // roundBaseRaw removed — we use ESP32 raw round directly
+  // מיפוי סבב: בתצוגה מתחילים מ-0 בעת התחברות, ולחיצה ראשונה על START = סבב 1
+  let roundBaseRaw = null;
 
   // ── מצב חוץ ──────────────────────────────────────────
   (function() {
@@ -416,9 +417,10 @@
       ]);
       const status = await statusRes.json();
       const ant    = await antRes.json();
-      // Use ESP32 raw round directly:
-      // After clear → round=0, first START → round=1, etc.
-      status.round_mapped = Number(status.round || 0);
+      // קיבוע בסיס סבב בעת התחברות: תצוגה מתחילה מ-0
+      const rawRound = Number(status.round || 0);
+      if (roundBaseRaw === null) roundBaseRaw = rawRound;
+      status.round_mapped = Math.max(0, rawRound - roundBaseRaw);
       raceStatus = status;
       setConnected(true);
       updateStatusUI(status, ant);
@@ -532,6 +534,7 @@
     if (!confirm('⚠️ למחוק את כל נתוני המירוץ?')) return;
     await espPost('/clear'); showToast('הנתונים נמחקו', 'info');
     // אחרי clear הבקר חוזר ל-0
+    roundBaseRaw = null;
     sheetsSyncedKeys = new Set();
     lastAutoSheetsHash = '';
     lastTagCount = 0; leaderboardData = []; updateLeaderboard([]);
