@@ -164,7 +164,7 @@
       <!-- כרטיסי סטטוס -->
       <div class="stat-grid mb-16">
         <div class="stat-card">
-          <div class="stat-val" id="op-round">#1</div>
+          <div class="stat-val" id="op-round">#0</div>
           <div class="stat-lbl">סבב</div>
         </div>
         <div class="stat-card">
@@ -252,7 +252,7 @@
       <!-- כרטיסי סטטוס -->
       <div class="stat-grid mb-16">
         <div class="stat-card">
-          <div class="stat-val" id="ev-round">#1</div>
+          <div class="stat-val" id="ev-round">#0</div>
           <div class="stat-lbl">סבב</div>
         </div>
         <div class="stat-card">
@@ -434,7 +434,7 @@ const MOCK_TAGS = [
 
 // ── מצב ──────────────────────────────────────────────
 let scanning     = false;
-let round        = 1;
+let round        = 0;
 let startTime    = 0;
 let durationMs   = 30000;
 let raceMode     = 0;     // 0=הגעה, 1=הקפות
@@ -551,7 +551,7 @@ window.addEventListener('storage', (e) => {
 
 function simStart() {
   if (scanning) return;
-  round++;
+  round = round + 1;
   leaderboard = [];
   scanning  = true;
   startTime = Date.now();
@@ -1310,9 +1310,17 @@ buildChart = function() {
   const ctx = document.getElementById('chart-canvas');
   if (!ctx) return;
   if (chartInst) { chartInst.destroy(); chartInst = null; }
+
   const rows = getVisibleLeaderboard();
-  if (rows.length === 0) return;
-  const selected = rows.find(r => r.epc === selectedEpc) || rows[0];
+  // בחר משתתף: נבחר ידנית > ראשון בטבלה
+  const selected = (selectedEpc && rows.find(r => r.epc === selectedEpc)) || rows[0];
+
+  if (!selected) {
+    showToast('אין נתוני משתתפים להצגה', 'info');
+    return;
+  }
+
+  // בנה נקודות מהסנאפשוטים (סבבים שהסתיימו)
   const snapshots = roundSnapshotsByGroup[activeGroup] || [];
   const points = snapshots
     .map(s => {
@@ -1320,12 +1328,27 @@ buildChart = function() {
       return found ? { round: s.round, place: found.place } : null;
     })
     .filter(Boolean);
+
+  // הוסף את הסבב הנוכחי החי (אם לא כבר ב-snapshots)
+  const alreadyInSnaps = points.some(p => p.round === round);
+  if (!alreadyInSnaps && rows.length > 0) {
+    const livePlace = rows.findIndex(r => r.epc === selected.epc);
+    if (livePlace >= 0) {
+      points.push({ round, place: livePlace + 1 });
+    }
+  }
+
   if (points.length === 0) {
-    showToast(`אין היסטוריית סבבים למשתתף ${selected.participantId} עדיין`, 'info');
+    showToast(`אין נתונים למשתתף ${selected.participantId} עדיין`, 'info');
     return;
   }
+
+  // מיין לפי סבב
+  points.sort((a, b) => a.round - b.round);
+
   const labels = points.map(p => `סבב ${p.round}`);
   const values = points.map(p => p.place);
+
   chartInst = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1337,7 +1360,8 @@ buildChart = function() {
         backgroundColor: 'rgba(96,165,250,0.15)',
         fill: true,
         tension: 0.25,
-        pointRadius: 4
+        pointRadius: 5,
+        pointBackgroundColor: '#60a5fa'
       }]
     },
     options: {
@@ -1348,11 +1372,15 @@ buildChart = function() {
           reverse: true,
           beginAtZero: false,
           ticks: { precision: 0, color: '#94a3b8' },
-          grid: { color: 'rgba(255,255,255,0.06)' }
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          title: { display: true, text: 'מיקום', color: '#94a3b8' }
         },
         x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
       },
-      plugins: { legend: { display: true } }
+      plugins: {
+        legend: { display: true, labels: { color: '#94a3b8' } },
+        tooltip: { callbacks: { label: c => `מיקום: #${c.raw}` } }
+      }
     }
   });
 };
