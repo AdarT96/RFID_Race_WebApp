@@ -577,8 +577,10 @@ function saveCurrentRoundSnapshot() {
 
 function simStart() {
   if (scanning) return;
+  console.log('[START] before saveSnapshot: round=' + round + ' leaderboard=' + leaderboard.length + ' activeGroup=' + activeGroup);
   // שמור snapshot של הסבב הקודם לפני ניקוי
   saveCurrentRoundSnapshot();
+  console.log('[START] after saveSnapshot: snapshots=' + JSON.stringify((roundSnapshotsByGroup[activeGroup]||[]).map(s=>s.round)));
   round = round + 1;
   leaderboard = [];
   scanning  = true;
@@ -1320,8 +1322,10 @@ updateLeaderboard = function() {
 const _stopOrig = stopRace;
 stopRace = function() {
   const wasScanning = scanning;
+  console.log('[STOP] wasScanning=' + wasScanning + ' round=' + round + ' leaderboard=' + leaderboard.length);
   // שמור snapshot לפני שינוי מצב
   if (wasScanning) saveCurrentRoundSnapshot();
+  console.log('[STOP] after saveSnapshot: snapshots=' + JSON.stringify((roundSnapshotsByGroup[activeGroup]||[]).map(s=>s.round)));
   _stopOrig();
   broadcastRaceState(); // שדר עצירה לטאב המעריך
 };
