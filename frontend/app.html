@@ -308,6 +308,7 @@
   let sheetsSyncInProgress = false;
   // מיפוי סבב: בתצוגה מתחילים מ-0 בעת התחברות, ולחיצה ראשונה על START = סבב 1
   let roundBaseRaw = null;
+  let hasStartedThisSession = false;
 
   // ── מצב חוץ ──────────────────────────────────────────
   (function() {
@@ -420,7 +421,8 @@
       // קיבוע בסיס סבב בעת התחברות: תצוגה מתחילה מ-0
       const rawRound = Number(status.round || 0);
       if (roundBaseRaw === null) roundBaseRaw = rawRound;
-      status.round_mapped = Math.max(0, rawRound - roundBaseRaw);
+      hasStartedThisSession = rawRound > roundBaseRaw;
+      status.round_mapped = hasStartedThisSession ? Math.max(0, rawRound - roundBaseRaw) : 0;
       raceStatus = status;
       setConnected(true);
       updateStatusUI(status, ant);
@@ -535,6 +537,7 @@
     await espPost('/clear'); showToast('הנתונים נמחקו', 'info');
     // אחרי clear הבקר חוזר ל-0
     roundBaseRaw = null;
+    hasStartedThisSession = false;
     sheetsSyncedKeys = new Set();
     lastAutoSheetsHash = '';
     lastTagCount = 0; leaderboardData = []; updateLeaderboard([]);
