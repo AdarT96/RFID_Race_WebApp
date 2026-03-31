@@ -821,7 +821,22 @@ function applyTag(tag) {
   if (!entry) { showToast('משתתף לא נמצא', 'error'); return; }
   entry.comments = entry.comments || [];
   if (!entry.comments.includes(tag)) entry.comments.push(tag);
+
+  // עדכן את התיוג גם בסנאפשוט השמור (אם קיים)
+  const snaps = roundSnapshotsByGroup[activeGroup] || [];
+  snaps.forEach(snap => {
+    const row = (snap.rows || []).find(r => r.epc === selectedEpc);
+    if (row) {
+      row.comments = row.comments || [];
+      if (!row.comments.includes(tag)) row.comments.push(tag);
+    }
+  });
+
+  // שמור snapshot עדכני אם המירוץ פעיל (או עדכן את הקיים)
+  saveCurrentRoundSnapshot();
+
   updateLeaderboard();
+  broadcastRaceState();
   showToast(`תיוג "${tag}" נוסף למשתתף ${entry.participantId}`, 'success');
 }
 
