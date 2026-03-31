@@ -517,6 +517,7 @@ function broadcastRaceState() {
     durationMs,
     raceMode,
     leaderboard: leaderboard.map(r => ({ ...r })),
+    snapshots: roundSnapshotsByGroup,
     ts: Date.now()
   };
   localStorage.setItem('demo_race_state', JSON.stringify(state));
@@ -535,15 +536,42 @@ window.addEventListener('storage', (e) => {
   if (e.key !== 'demo_race_state') return;
   if (currentRole !== 'evaluator') return; // רק מעריך מקשיב
   const state = readRaceStateFromStorage();
-  if (!state) return;
+  if (!state) {
+    // null = איפוס מלא (מחק הכל)
+    leaderboard = [];
+    roundSnapshotsByGroup = {};
+    round = 0;
+    scanning = false;
+    updateLeaderboard();
+    updateStatCards();
+    if (chartInst) { chartInst.destroy(); chartInst = null; }
+    return;
+  }
+  const prevRound = round;
   scanning   = state.scanning;
   round      = state.round;
   startTime  = state.startTime;
   durationMs = state.durationMs;
   raceMode   = state.raceMode;
-  // לא למחוק טבלה בתחילת סבב חדש עד שמגיעה תגית ראשונה
-  if (!(state.scanning && (!state.leaderboard || state.leaderboard.length === 0))) {
+  // אם הסבב ירד (איפוס) — נקה את הסנאפשוטים
+  if (state.round === 0 && prevRound > 0) {
+    roundSnapshotsByGroup = {};
+    leaderboard = [];
+    if (chartInst) { chartInst.destroy(); chartInst = null; }
+  } else if (!(state.scanning && (!state.leaderboard || state.leaderboard.length === 0))) {
+    // לא למחוק טבלה בתחילת סבב חדש עד שמגיעה תגית ראשונה
     leaderboard = state.leaderboard || [];
+  }
+  // סנכרן סנאפשוטים מהמגבש (לגרף התקדמות)
+  if (state.snapshots) {
+    // מזג סנאפשוטים חדשים לתוך הקיימים (לא מחיק סנאפשוטים שהמעריך ערך בעצמו)
+    Object.keys(state.snapshots).forEach(grp => {
+      if (!roundSnapshotsByGroup[grp]) roundSnapshotsByGroup[grp] = [];
+      (state.snapshots[grp] || []).forEach(snap => {
+        const exists = roundSnapshotsByGroup[grp].some(s => s.round === snap.round);
+        if (!exists) roundSnapshotsByGroup[grp].push(snap);
+      });
+    });
   }
   updateLeaderboard();
   updateStatCards();
@@ -669,7 +697,6 @@ function uiTick() {
   if (remaining === 0) {
     stopRace();
     showToast('הזמן נגמר! המירוץ הסתיים.', 'info');
-    saveRaceToHistory();
   }
 }
 
@@ -843,12 +870,31 @@ function simReboot() {
 
 function simClear() {
   if (!confirm('⚠️ למחוק את כל נתוני המירוץ?')) return;
-  stopRace();
+  // עצור מירוץ בלי לשמור snapshot (איפוס מלא)
+  scanning = false;
+  if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
+  if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
   leaderboard = [];
   roundSnapshotsByGroup = {};
   round = 0;
+  raceHistory = [];
+  demoSheetsSyncedKeys.clear();
+  lastAutoSheetsHash = '';
+  selectedEpc = null;
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  const btnStart = document.getElementById('btn-start');
+  const btnStop  = document.getElementById('btn-stop');
+  if (btnStart) btnStart.disabled = false;
+  if (btnStop)  btnStop.disabled  = false;
+  const adminCnt = document.getElementById('admin-races-count');
+  if (adminCnt) adminCnt.textContent = '0';
+  const histEl = document.getElementById('race-history-list');
+  if (histEl) histEl.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:30px">אין מרוצים עדיין — התחל מירוץ מתצוגת המגבש.</div>';
   updateStatCards();
   updateLeaderboard();
+  // שדר איפוס לטאב המעריך
+  localStorage.removeItem('demo_race_state');
+  broadcastRaceState();
   showToast('הנתונים נמחקו', 'info');
 }
 
