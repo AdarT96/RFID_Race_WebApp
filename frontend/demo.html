@@ -922,7 +922,9 @@ async function simSyncSheets(isAuto = false) {
       const seenInThisRound = new Set();
       for (const r of rows) {
         const rowKey = `${Number(s.round || round)}|${String(r.epc || '')}|${Number(r.firstMs || 0)}`;
-        if (seenInThisRound.has(rowKey) || demoSheetsSyncedKeys.has(rowKey)) continue;
+        if (seenInThisRound.has(rowKey)) continue;
+        // בסנכרון ידני — שלח הכל (כולל שורות שנשלחו בעבר)
+        if (isAuto && demoSheetsSyncedKeys.has(rowKey)) continue;
         seenInThisRound.add(rowKey);
         uniqueRows.push(r);
       }
@@ -1313,19 +1315,28 @@ updateLeaderboard = function() {
 const _stopOrig = stopRace;
 stopRace = function() {
   const wasScanning = scanning;
+  // שמור snapshot לפני קריאה ל-_stopOrig (שעלול לשנות מצב)
+  const snapshotRows = wasScanning ? getVisibleLeaderboard().map((r, i) => ({
+    teamId: r.teamId,
+    participantId: r.participantId,
+    epc: r.epc,
+    place: i + 1,
+    firstMs: r.firstMs,
+    laps: r.laps || 1
+  })) : [];
+  const snapshotRound = round;
+  const snapshotMode  = raceMode === 1 ? 'laps' : 'arrival';
+
   _stopOrig();
   broadcastRaceState(); // שדר עצירה לטאב המעריך
-  if (wasScanning) {
-    const rows = getVisibleLeaderboard().map((r, i) => ({
-      teamId: r.teamId,
-      participantId: r.participantId,
-      epc: r.epc,
-      place: i + 1,
-      firstMs: r.firstMs,
-      laps: r.laps || 1
-    }));
+
+  if (wasScanning && snapshotRows.length > 0) {
     roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
-    roundSnapshotsByGroup[activeGroup].push({ round, mode: raceMode === 1 ? 'laps' : 'arrival', rows });
+    // הוסף רק אם הסבב הזה עדיין לא קיים
+    const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === snapshotRound);
+    if (!alreadySaved) {
+      roundSnapshotsByGroup[activeGroup].push({ round: snapshotRound, mode: snapshotMode, rows: snapshotRows });
+    }
   }
 };
 
