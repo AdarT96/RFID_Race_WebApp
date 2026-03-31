@@ -566,7 +566,11 @@ function saveCurrentRoundSnapshot() {
         epc: r.epc,
         place: i + 1,
         firstMs: r.firstMs,
-        laps: r.laps || 1
+        lastMs: r.lastMs || r.firstMs,
+        laps: r.laps || 1,
+        rssi: r.rssi || 0,
+        antenna: r.antenna || 0,
+        comments: (r.comments || []).slice()
       }))
     });
   }
@@ -574,8 +578,8 @@ function saveCurrentRoundSnapshot() {
 
 function simStart() {
   if (scanning) return;
-  // שמור snapshot של הסבב הקודם לפני ניקוי
-  saveCurrentRoundSnapshot();
+  // שמור snapshot של הסבב הקודם לפני ניקוי (עם מספר הסבב הנוכחי)
+  if (round >= 1 && leaderboard.length > 0) saveCurrentRoundSnapshot();
   round = round + 1;
   leaderboard = [];
   scanning  = true;
@@ -875,6 +879,8 @@ async function simSyncSheets(isAuto = false) {
   if (!DEMO_SHEETS_SYNC_ENABLED && !isAuto) {
     showToast('שים לב: מצב demo לא מסנכרן אוטומטית. מתבצע עכשיו סנכרון ידני חד-פעמי.', 'info');
   }
+  // בסנכרון ידני — שלח הכל מחדש (כולל סבבים קודמים)
+  if (!isAuto) demoSheetsSyncedKeys.clear();
 
   if (typeof APP_CONFIG === 'undefined' || !APP_CONFIG.sheetsApiUrl || APP_CONFIG.sheetsApiUrl.startsWith('YOUR_')) {
     if (!isAuto) showToast('הגדר APP_CONFIG.sheetsApiUrl ו-sheetsApiKey כדי לסנכרן', 'error');
@@ -1323,6 +1329,7 @@ stopRace = function() {
   scanning = false;
   if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
   if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
+  if (wasScanning && leaderboard.length > 0) saveRaceToHistory();
   updateStatCards();
   updateLeaderboard();
   simSyncSheets(true);
@@ -1346,52 +1353,34 @@ buildChart = function() {
   const selected = (selectedEpc && rows.find(r => r.epc === selectedEpc)) || rows[0];
 
   if (!selected) {
-    // אם אין נתונים חיים, נסה לבנות מהסנאפשוטים
+    // אין נתונים חיים — בנה מהסנאפשוטים
     const allSnaps = roundSnapshotsByGroup[activeGroup] || [];
     if (allSnaps.length === 0) {
       showToast('אין נתוני משתתפים להצגה', 'info');
       return;
     }
-    // בחר משתתף מהסנאפשוט האחרון
-    const lastSnap = allSnaps[allSnaps.length - 1];
-    const firstRow = (lastSnap.rows || [])[0];
-    if (!firstRow) { showToast('אין נתוני משתתפים להצגה', 'info'); return; }
-    const epcToShow = selectedEpc || firstRow.epc;
-    const allPoints = allSnaps.map(s => {
-      const found = s.rows.find(p => p.epc === epcToShow);
-      return found ? { round: s.round, place: found.place } : null;
-    }).filter(Boolean).sort((a, b) => a.round - b.round);
-    if (allPoints.length === 0) { showToast('אין נתוני משתתפים להצגה', 'info'); return; }
-    _renderLineChart(ctx, allPoints, firstRow.participantId);
+    _renderMultiLineChart(ctx, allSnaps);
     return;
   }
 
-  // בנה נקודות מהסנאפשוטים (סבבים שהסתיימו)
-  const snapshots = roundSnapshotsByGroup[activeGroup] || [];
-  const points = snapshots
-    .map(s => {
-      const found = s.rows.find(p => p.epc === selected.epc);
-      return found ? { round: s.round, place: found.place } : null;
-    })
-    .filter(Boolean);
-
-  // הוסף את הסבב הנוכחי החי (אם לא כבר ב-snapshots)
-  const alreadyInSnaps = points.some(p => p.round === round);
-  if (!alreadyInSnaps && rows.length > 0) {
-    const livePlace = rows.findIndex(r => r.epc === selected.epc);
-    if (livePlace >= 0) {
-      points.push({ round, place: livePlace + 1 });
-    }
+  // בנה snapshots מלאים כולל הסבב הנוכחי החי
+  const snapshots = (roundSnapshotsByGroup[activeGroup] || []).slice();
+  // הוסף סבב נוכחי חי אם לא כבר ב-snapshots
+  const liveAlready = snapshots.some(s => s.round === round);
+  if (!liveAlready && rows.length > 0) {
+    snapshots.push({
+      round,
+      mode: raceMode === 1 ? 'laps' : 'arrival',
+      rows: rows.map((r, i) => ({ ...r, place: i + 1 }))
+    });
   }
 
-  if (points.length === 0) {
-    showToast(`אין נתונים למשתתף ${selected.participantId} עדיין`, 'info');
+  if (snapshots.length === 0) {
+    showToast('אין נתונים להצגה עדיין', 'info');
     return;
   }
 
-  // מיין לפי סבב
-  points.sort((a, b) => a.round - b.round);
-  _renderLineChart(ctx, points, selected.participantId);
+  _renderMultiLineChart(ctx, snapshots);
 };
 
 function _renderLineChart(ctx, points, participantId) {
@@ -1429,6 +1418,70 @@ function _renderLineChart(ctx, points, participantId) {
       plugins: {
         legend: { display: true, labels: { color: '#94a3b8' } },
         tooltip: { callbacks: { label: c => `מיקום: #${c.raw}` } }
+      }
+    }
+  });
+}
+
+function _renderMultiLineChart(ctx, snapshots) {
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  if (!snapshots || snapshots.length === 0) return;
+
+  // Collect all unique EPCs across all snapshots
+  const epcMap = {}; // epc -> participantId
+  snapshots.forEach(s => {
+    (s.rows || []).forEach(r => { epcMap[r.epc] = r.participantId; });
+  });
+  const epcs = Object.keys(epcMap);
+  if (epcs.length === 0) return;
+
+  // Sort snapshots by round
+  const sorted = snapshots.slice().sort((a, b) => a.round - b.round);
+  const labels = sorted.map(s => `סבב ${s.round}`);
+
+  // Build one dataset per participant
+  const COLORS = [
+    '#60a5fa','#34d399','#f472b6','#fbbf24','#a78bfa',
+    '#fb923c','#38bdf8','#4ade80','#e879f9','#facc15'
+  ];
+  const datasets = epcs.map((epc, i) => {
+    const data = sorted.map(s => {
+      const row = (s.rows || []).find(r => r.epc === epc);
+      return row ? row.place : null;
+    });
+    const color = COLORS[i % COLORS.length];
+    return {
+      label: `משתתף ${epcMap[epc]}`,
+      data,
+      borderColor: color,
+      backgroundColor: color + '26',
+      fill: false,
+      tension: 0.25,
+      pointRadius: 5,
+      pointBackgroundColor: color,
+      spanGaps: true
+    };
+  });
+
+  chartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          reverse: true,
+          beginAtZero: false,
+          ticks: { precision: 0, color: '#94a3b8' },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          title: { display: true, text: 'מיקום', color: '#94a3b8' }
+        },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: true, labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: #${c.raw}` } }
       }
     }
   });
