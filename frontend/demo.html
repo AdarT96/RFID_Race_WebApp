@@ -549,31 +549,33 @@ window.addEventListener('storage', (e) => {
   updateStatCards();
 });
 
+function saveCurrentRoundSnapshot() {
+  // שמור snapshot של הסבב הנוכחי אם יש נתונים ועדיין לא נשמר
+  if (round < 1) return;
+  const visRows = getVisibleLeaderboard();
+  if (visRows.length === 0) return;
+  roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
+  const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === round);
+  if (!alreadySaved) {
+    roundSnapshotsByGroup[activeGroup].push({
+      round,
+      mode: raceMode === 1 ? 'laps' : 'arrival',
+      rows: visRows.map((r, i) => ({
+        teamId: r.teamId,
+        participantId: r.participantId,
+        epc: r.epc,
+        place: i + 1,
+        firstMs: r.firstMs,
+        laps: r.laps || 1
+      }))
+    });
+  }
+}
+
 function simStart() {
   if (scanning) return;
-  // שמור snapshot של הסבב הקודם לפני ניקוי (אם היה מירוץ פעיל שנעצר)
-  if (leaderboard.length > 0) {
-    const prevRows = getVisibleLeaderboard().map((r, i) => ({
-      teamId: r.teamId,
-      participantId: r.participantId,
-      epc: r.epc,
-      place: i + 1,
-      firstMs: r.firstMs,
-      laps: r.laps || 1
-    }));
-    if (prevRows.length > 0) {
-      roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
-      // הוסף רק אם הסבב הזה עדיין לא קיים ב-snapshots
-      const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === round);
-      if (!alreadySaved) {
-        roundSnapshotsByGroup[activeGroup].push({
-          round,
-          mode: raceMode === 1 ? 'laps' : 'arrival',
-          rows: prevRows
-        });
-      }
-    }
-  }
+  // שמור snapshot של הסבב הקודם לפני ניקוי
+  saveCurrentRoundSnapshot();
   round = round + 1;
   leaderboard = [];
   scanning  = true;
@@ -1315,29 +1317,10 @@ updateLeaderboard = function() {
 const _stopOrig = stopRace;
 stopRace = function() {
   const wasScanning = scanning;
-  // שמור snapshot לפני קריאה ל-_stopOrig (שעלול לשנות מצב)
-  const snapshotRows = wasScanning ? getVisibleLeaderboard().map((r, i) => ({
-    teamId: r.teamId,
-    participantId: r.participantId,
-    epc: r.epc,
-    place: i + 1,
-    firstMs: r.firstMs,
-    laps: r.laps || 1
-  })) : [];
-  const snapshotRound = round;
-  const snapshotMode  = raceMode === 1 ? 'laps' : 'arrival';
-
+  // שמור snapshot לפני שינוי מצב
+  if (wasScanning) saveCurrentRoundSnapshot();
   _stopOrig();
   broadcastRaceState(); // שדר עצירה לטאב המעריך
-
-  if (wasScanning && snapshotRows.length > 0) {
-    roundSnapshotsByGroup[activeGroup] = roundSnapshotsByGroup[activeGroup] || [];
-    // הוסף רק אם הסבב הזה עדיין לא קיים
-    const alreadySaved = roundSnapshotsByGroup[activeGroup].some(s => s.round === snapshotRound);
-    if (!alreadySaved) {
-      roundSnapshotsByGroup[activeGroup].push({ round: snapshotRound, mode: snapshotMode, rows: snapshotRows });
-    }
-  }
 };
 
 buildChart = function() {
