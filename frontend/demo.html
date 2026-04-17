@@ -365,7 +365,7 @@
             <thead>
               <tr>
                 <th>מיקום</th>
-                <th>קבוצה</th>
+                <th>צוות</th>
                 <th>משתתף</th>
                 <th id="lb-col-score">זמן ראשון</th>
                 <th>מיקום אחרון</th>
@@ -822,6 +822,7 @@ function saveCurrentRoundSnapshot() {
     mode: raceMode === 1 ? 'laps' : 'arrival',
     rows: visRows.map((r, i) => ({
       teamId: r.teamId,
+      stationId: r.stationId || activeGroup,
       participantId: r.participantId,
       epc: r.epc,
       place: i + 1,
@@ -1496,7 +1497,7 @@ function buildChart() {
   if (chartInst) { chartInst.destroy(); chartInst = null; }
   if (leaderboard.length === 0) return;
 
-  const labels   = leaderboard.map(r => `ק${r.teamId} מ${r.participantId}`);
+  const labels   = leaderboard.map(r => `צ${r.teamId} מ${r.participantId}`);
   const hasLaps  = raceMode === 1;
   const dataVals = hasLaps ? leaderboard.map(r => r.laps || 0) : leaderboard.map(r => (r.firstMs||0) / 1000);
   const colors   = leaderboard.map((_, i) => `hsl(${(i*137)%360},70%,55%)`);
@@ -1657,12 +1658,14 @@ function buildMockGroupPool(groupId) {
   // RSSI ואנטנה קבועים — תוצאות עקביות בין סבבים
   const FIXED_RSSI    = [-48,-52,-59,-44,-63,-55,-41,-67,-50,-57];
   const FIXED_ANTENNA = [  1,  2,  1,  3,  2,  4,  1,  2,  3,  4];
+  const teamNum = operatorTeam != null ? String(operatorTeam).padStart(2,'0') : groupId;
   const pool = [];
   for (let i = 0; i < 10; i++) {
     const participantId = String(i + 1).padStart(4, '0');
     pool.push({
-      epc: `E2003412${groupId}${participantId}`,
-      teamId: groupId,
+      epc: `E2003412${teamNum}${participantId}`,
+      teamId: teamNum,     // צוות קבוע
+      stationId: groupId,  // תחנה נוכחית
       participantId,
       rssi: FIXED_RSSI[i],
       antenna: FIXED_ANTENNA[i]
@@ -1673,7 +1676,7 @@ function buildMockGroupPool(groupId) {
 
 function getVisibleLeaderboard() {
   const result = leaderboard
-    .filter(r => r.teamId === activeGroup)
+    .filter(r => (r.stationId || r.teamId) === activeGroup) // סנן לפי תחנה
     .slice()
     .sort((a, b) => raceMode === 1 ? (b.laps - a.laps || a.lastMs - b.lastMs) : a.firstMs - b.firstMs);
   return result;
@@ -1683,7 +1686,8 @@ function setActiveGroup(groupId) {
   activeGroup = groupId;
   selectedEpc = null;
   const info = document.getElementById('selected-tag-info');
-  if (info) info.textContent = `קבוצה פעילה: ${groupId}. לא נבחר משתתף.`;
+  const teamLbl = operatorTeam != null ? operatorTeam : '—';
+  if (info) info.textContent = `צוות ${teamLbl} · תחנה ${groupId}. לא נבחר משתתף.`;
   updateLeaderboard();
   updateStatCards();
 }
@@ -1778,7 +1782,7 @@ updateLeaderboard = function() {
   if (rows.length === 0) {
     noData.style.display = '';
     table.style.display = 'none';
-    noData.textContent = `אין נתונים לקבוצה ${activeGroup} כרגע.`;
+    noData.textContent = `אין נתונים לתחנה ${activeGroup} כרגע.`;
     return;
   }
   noData.style.display = 'none';
