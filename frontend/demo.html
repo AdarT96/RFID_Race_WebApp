@@ -288,11 +288,13 @@
           <span class="collapsible-arrow" id="gp-arrow">▼</span>
         </div>
         <div class="collapsible-body" id="gp-body">
-          <p style="font-size:13px; color:var(--text-muted); margin:8px 0 10px">
-            שורה לכל משתתף בפורמט: <strong>מספר_משתתף,מספר_צוות</strong> (למשל <code>5,3</code>).
-            הרשימה נשמרת מקומית עד למחיקה מלאה.
+          <p style="font-size:13px; color:var(--text-muted); margin:8px 0 6px">
+            מספר משתתף אחד בכל שורה. הצוות נלקח אוטומטית מהתחנה הנבחרת.
           </p>
-          <textarea id="gp-input" class="form-input" rows="6" style="width:100%; font-family:monospace; resize:vertical" placeholder="1,1&#10;2,1&#10;3,2&#10;4,2"></textarea>
+          <div style="font-size:13px; margin-bottom:10px">
+            צוות פעיל: <strong id="gp-active-team">—</strong>
+          </div>
+          <textarea id="gp-input" class="form-input" rows="6" style="width:100%; font-family:monospace; resize:vertical" placeholder="1&#10;2&#10;3&#10;4"></textarea>
           <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
             <button class="btn btn-primary" onclick="saveGeneralParticipants()" style="padding:8px 16px">💾 שמור רשימה</button>
             <span id="gp-count-info" style="font-size:13px; color:var(--text-muted); align-self:center"></span>
@@ -1024,16 +1026,14 @@ function persistGeneralData() {
 function saveGeneralParticipants() {
   const ta = document.getElementById('gp-input');
   if (!ta) return;
+  const team = parseInt(activeGroup, 10);
   const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const parsed = [];
   const seen = new Set();
   const errors = [];
   lines.forEach((line, i) => {
-    const parts = line.split(',').map(x => x.trim());
-    if (parts.length !== 2) { errors.push(`שורה ${i+1}: פורמט לא תקין`); return; }
-    const pid  = parseInt(parts[0], 10);
-    const team = parseInt(parts[1], 10);
-    if (!Number.isFinite(pid) || !Number.isFinite(team)) { errors.push(`שורה ${i+1}: מספרים לא תקינים`); return; }
+    const pid = parseInt(line, 10);
+    if (!Number.isFinite(pid) || pid <= 0) { errors.push(`שורה ${i+1}: מספר לא תקין`); return; }
     if (seen.has(pid)) { errors.push(`שורה ${i+1}: משתתף ${pid} כפול`); return; }
     seen.add(pid);
     parsed.push({ pid, team });
@@ -1048,10 +1048,13 @@ function saveGeneralParticipants() {
 }
 
 function refreshGeneralUI() {
-  // טקסטרייה
+  // עדכן תצוגת צוות פעיל
+  const teamEl = document.getElementById('gp-active-team');
+  if (teamEl) teamEl.textContent = activeGroup ? `תחנה ${activeGroup}` : '—';
+  // טקסטרייה — רק מספרי משתתפים
   const ta = document.getElementById('gp-input');
   if (ta && document.activeElement !== ta) {
-    ta.value = generalParticipants.map(p => `${p.pid},${p.team}`).join('\n');
+    ta.value = generalParticipants.map(p => p.pid).join('\n');
   }
   const info = document.getElementById('gp-count-info');
   if (info) info.textContent = generalParticipants.length ? `${generalParticipants.length} משתתפים נשמרו` : '';
@@ -1642,6 +1645,8 @@ function setActiveGroup(groupId) {
   selectedEpc = null;
   const info = document.getElementById('selected-tag-info');
   if (info) info.textContent = `קבוצה פעילה: ${groupId}. לא נבחר משתתף.`;
+  const teamEl = document.getElementById('gp-active-team');
+  if (teamEl) teamEl.textContent = `תחנה ${groupId}`;
   updateLeaderboard();
   updateStatCards();
 }
