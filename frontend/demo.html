@@ -141,23 +141,27 @@
         <p>הדגמה — לחץ על תפקיד כדי להיכנס</p>
       </div>
 
-      <button class="demo-role-btn" onclick="enterAs('operator')">
+      <!-- בחירת מגבש -->
+      <button class="demo-role-btn" onclick="toggleUserPicker('operator-picker')">
         <span class="role-icon">🎮</span>
         <div>
           <div class="role-name">מגבש</div>
           <div class="role-desc">שליטה במירוץ, התחל/עצור, הגדרות טכנאי</div>
         </div>
       </button>
+      <div id="operator-picker" style="display:none; margin:-6px 0 10px; border:1px solid var(--border); border-radius:8px; overflow:hidden"></div>
 
-      <button class="demo-role-btn" onclick="enterAs('evaluator')">
+      <!-- בחירת מעריך -->
+      <button class="demo-role-btn" onclick="toggleUserPicker('evaluator-picker')">
         <span class="role-icon">📊</span>
         <div>
           <div class="role-name">מעריך</div>
           <div class="role-desc">טבלת דירוג חי, תיוגים, גרף תוצאות</div>
         </div>
       </button>
+      <div id="evaluator-picker" style="display:none; margin:-6px 0 10px; border:1px solid var(--border); border-radius:8px; overflow:hidden"></div>
 
-      <button class="demo-role-btn" onclick="enterAs('admin')">
+      <button class="demo-role-btn" onclick="enterAs('admin', null)">
         <span class="role-icon">🛡️</span>
         <div>
           <div class="role-name">מנהל</div>
@@ -288,13 +292,9 @@
           <span class="collapsible-arrow" id="gp-arrow">▼</span>
         </div>
         <div class="collapsible-body" id="gp-body">
-          <div class="gear-row" style="margin-bottom:12px">
-            <span class="gear-label">מספר הצוות שלי</span>
-            <input id="gp-team-input" type="number" min="1" class="form-input" style="width:80px" placeholder="1">
+          <div style="font-size:13px; color:var(--text-muted); margin:8px 0 10px">
+            צוות: <strong id="gp-team-display">—</strong> &nbsp;·&nbsp; מספר משתתף אחד בכל שורה:
           </div>
-          <p style="font-size:13px; color:var(--text-muted); margin:0 0 8px">
-            מספר משתתף אחד בכל שורה:
-          </p>
           <textarea id="gp-input" class="form-input" rows="6" style="width:100%; font-family:monospace; resize:vertical" placeholder="1&#10;2&#10;3&#10;4"></textarea>
           <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
             <button class="btn btn-primary" onclick="saveGeneralParticipants()" style="padding:8px 16px">💾 שמור רשימה</button>
@@ -648,8 +648,39 @@ let lastAutoSheetsHash = '';
 let demoSheetsSyncedKeys = new Set();
 const DEMO_SHEETS_SYNC_ENABLED = !!(typeof APP_CONFIG !== 'undefined' && APP_CONFIG.enableDemoSheetsSync === true);
 
+// ── בחירת משתמש לפני כניסה ────────────────────────────
+function toggleUserPicker(pickerId) {
+  const roleMap = { 'operator-picker': 'מגבש', 'evaluator-picker': 'מעריך' };
+  const roleKey = { 'operator-picker': 'operator', 'evaluator-picker': 'evaluator' };
+  const el = document.getElementById(pickerId);
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  // סגור את השני
+  ['operator-picker','evaluator-picker'].forEach(id => {
+    const other = document.getElementById(id);
+    if (other && id !== pickerId) other.style.display = 'none';
+  });
+  const roleHe = roleMap[pickerId];
+  const role   = roleKey[pickerId];
+  const users  = DEMO_USERS.filter(u => u.role === roleHe || u.role === roleHe.replace('מגבש','מגבש'));
+  if (!users.length) { enterAs(role, null); return; }
+  el.innerHTML = users.map((u, i) => `
+    <div onclick="enterAs('${role}', ${DEMO_USERS.indexOf(u)})"
+         style="padding:10px 16px; cursor:pointer; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:var(--surface)"
+         onmouseover="this.style.background='rgba(99,102,241,0.1)'" onmouseout="this.style.background='var(--surface)'">
+      <span style="font-weight:600">${u.name}</span>
+      <span class="badge badge-info">צוות ${u.team || '—'}</span>
+    </div>
+  `).join('');
+  el.style.display = 'block';
+}
+
 // ── כניסה לתפקיד ──────────────────────────────────────
-function enterAs(role) {
+function enterAs(role, userIdx) {
+  // קבע צוות מה-DEMO_USERS אם נבחר משתמש
+  if (userIdx != null && DEMO_USERS[userIdx]) {
+    operatorTeam = Number(DEMO_USERS[userIdx].team) || null;
+  }
   currentRole = role;
   document.getElementById('login-shell').style.display  = 'none';
   document.getElementById('app-shell').style.display    = 'block';
@@ -1030,12 +1061,10 @@ function persistGeneralData() {
 }
 
 function saveGeneralParticipants() {
-  const ta       = document.getElementById('gp-input');
-  const teamInp  = document.getElementById('gp-team-input');
+  const ta = document.getElementById('gp-input');
   if (!ta) return;
-  const teamVal = parseInt(teamInp ? teamInp.value : '', 10);
-  if (!Number.isFinite(teamVal) || teamVal <= 0) { showToast('הכנס מספר צוות תקין', 'error'); return; }
-  operatorTeam = teamVal;
+  if (operatorTeam == null) { showToast('צוות לא הוגדר — כנס מחדש ובחר משתמש', 'error'); return; }
+  const team = operatorTeam;
   const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const parsed = [];
   const seen = new Set();
@@ -1057,11 +1086,8 @@ function saveGeneralParticipants() {
 }
 
 function refreshGeneralUI() {
-  // עדכן שדה מספר צוות
-  const teamInp = document.getElementById('gp-team-input');
-  if (teamInp && document.activeElement !== teamInp && operatorTeam != null) {
-    teamInp.value = operatorTeam;
-  }
+  const teamDisp = document.getElementById('gp-team-display');
+  if (teamDisp) teamDisp.textContent = operatorTeam != null ? operatorTeam : '—';
   // טקסטרייה — רק מספרי משתתפים
   const ta = document.getElementById('gp-input');
   if (ta && document.activeElement !== ta) {
@@ -1672,8 +1698,8 @@ function buildDemoEpcHistory(epc) {
 }
 
 const _enterAsOrig = enterAs;
-enterAs = function(role) {
-  _enterAsOrig(role);
+enterAs = function(role, userIdx) {
+  _enterAsOrig(role, userIdx);
   ensureGroupSelector();
   if (role !== 'admin') setActiveGroup(activeGroup);
 };
@@ -1990,6 +2016,7 @@ window.demoReject        = demoReject;
 window.demoPromote       = demoPromote;
 
 // הערות כלליות
+window.toggleUserPicker         = toggleUserPicker;
 window.saveGeneralParticipants  = saveGeneralParticipants;
 window.selectGeneralParticipant = selectGeneralParticipant;
 window.applyGeneralCustomNote   = applyGeneralCustomNote;
