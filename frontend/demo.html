@@ -288,12 +288,13 @@
           <span class="collapsible-arrow" id="gp-arrow">▼</span>
         </div>
         <div class="collapsible-body" id="gp-body">
-          <p style="font-size:13px; color:var(--text-muted); margin:8px 0 6px">
-            מספר משתתף אחד בכל שורה. הצוות נלקח אוטומטית מהתחנה הנבחרת.
-          </p>
-          <div style="font-size:13px; margin-bottom:10px">
-            צוות פעיל: <strong id="gp-active-team">—</strong>
+          <div class="gear-row" style="margin-bottom:12px">
+            <span class="gear-label">מספר הצוות שלי</span>
+            <input id="gp-team-input" type="number" min="1" class="form-input" style="width:80px" placeholder="1">
           </div>
+          <p style="font-size:13px; color:var(--text-muted); margin:0 0 8px">
+            מספר משתתף אחד בכל שורה:
+          </p>
           <textarea id="gp-input" class="form-input" rows="6" style="width:100%; font-family:monospace; resize:vertical" placeholder="1&#10;2&#10;3&#10;4"></textarea>
           <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
             <button class="btn btn-primary" onclick="saveGeneralParticipants()" style="padding:8px 16px">💾 שמור רשימה</button>
@@ -1002,10 +1003,12 @@ function fmtTime(ms) {
 // ── הערות כלליות (גלובליות, ללא תלות בתחנה) ──────────
 const GN_LS_PARTICIPANTS = 'demo_general_participants';
 const GN_LS_NOTES        = 'demo_general_notes';
+const GN_LS_TEAM         = 'demo_operator_team';
 let generalParticipants = []; // [{ pid, team }]
 let generalNotes        = {}; // { pid: [note, ...] }
 let selectedGeneralPid  = null;
 let gnSyncedKeys        = new Set(); // pid|noteIndex
+let operatorTeam        = null; // מספר צוות קבוע של המגבש
 
 function loadGeneralData() {
   try {
@@ -1016,17 +1019,23 @@ function loadGeneralData() {
     const n = JSON.parse(localStorage.getItem(GN_LS_NOTES) || '{}');
     if (n && typeof n === 'object') generalNotes = n;
   } catch (e) { generalNotes = {}; }
+  const t = localStorage.getItem(GN_LS_TEAM);
+  if (t) operatorTeam = parseInt(t, 10);
 }
 
 function persistGeneralData() {
   localStorage.setItem(GN_LS_PARTICIPANTS, JSON.stringify(generalParticipants));
   localStorage.setItem(GN_LS_NOTES, JSON.stringify(generalNotes));
+  if (operatorTeam != null) localStorage.setItem(GN_LS_TEAM, String(operatorTeam));
 }
 
 function saveGeneralParticipants() {
-  const ta = document.getElementById('gp-input');
+  const ta       = document.getElementById('gp-input');
+  const teamInp  = document.getElementById('gp-team-input');
   if (!ta) return;
-  const team = parseInt(activeGroup, 10);
+  const teamVal = parseInt(teamInp ? teamInp.value : '', 10);
+  if (!Number.isFinite(teamVal) || teamVal <= 0) { showToast('הכנס מספר צוות תקין', 'error'); return; }
+  operatorTeam = teamVal;
   const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const parsed = [];
   const seen = new Set();
@@ -1048,9 +1057,11 @@ function saveGeneralParticipants() {
 }
 
 function refreshGeneralUI() {
-  // עדכן תצוגת צוות פעיל
-  const teamEl = document.getElementById('gp-active-team');
-  if (teamEl) teamEl.textContent = activeGroup ? `תחנה ${activeGroup}` : '—';
+  // עדכן שדה מספר צוות
+  const teamInp = document.getElementById('gp-team-input');
+  if (teamInp && document.activeElement !== teamInp && operatorTeam != null) {
+    teamInp.value = operatorTeam;
+  }
   // טקסטרייה — רק מספרי משתתפים
   const ta = document.getElementById('gp-input');
   if (ta && document.activeElement !== ta) {
@@ -1154,9 +1165,11 @@ function clearGeneralData() {
   generalParticipants = [];
   generalNotes = {};
   selectedGeneralPid = null;
+  operatorTeam = null;
   gnSyncedKeys.clear();
   localStorage.removeItem(GN_LS_PARTICIPANTS);
   localStorage.removeItem(GN_LS_NOTES);
+  localStorage.removeItem(GN_LS_TEAM);
   refreshGeneralUI();
 }
 
@@ -1645,8 +1658,6 @@ function setActiveGroup(groupId) {
   selectedEpc = null;
   const info = document.getElementById('selected-tag-info');
   if (info) info.textContent = `קבוצה פעילה: ${groupId}. לא נבחר משתתף.`;
-  const teamEl = document.getElementById('gp-active-team');
-  if (teamEl) teamEl.textContent = `תחנה ${groupId}`;
   updateLeaderboard();
   updateStatCards();
 }
