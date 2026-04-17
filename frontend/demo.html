@@ -1719,11 +1719,18 @@ resetToLogin = function() {
 
 scheduleTagArrivals = function() {
   if (!scanning) return;
-  // 10 משתתפים קבועים, מגיעים בהפרש קבוע של 900 מ"ש (כולם בתוך ~9 שניות)
+  // 10 משתתפים — סדר הגעה אקראי בכל סבב (גם ג'יטר קל בזמנים)
   const pool = buildMockGroupPool(activeGroup);
-  const ARRIVAL_INTERVAL = 900; // ms בין כל הגעה
+  // Fisher-Yates shuffle
+  for (let k = pool.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    [pool[k], pool[j]] = [pool[j], pool[k]];
+  }
+  const BASE_INTERVAL = 900; // ms בין כל הגעה
+  const JITTER        = 400; // ms סטייה אקראית (±)
   pool.forEach((tag, i) => {
-    const delay = ARRIVAL_INTERVAL * (i + 1);
+    const jitter = Math.floor((Math.random() - 0.5) * 2 * JITTER);
+    const delay  = Math.max(150, BASE_INTERVAL * (i + 1) + jitter);
     tagTimer = setTimeout(() => {
       if (!scanning) return;
       const now = Date.now() - startTime;
