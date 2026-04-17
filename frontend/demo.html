@@ -145,7 +145,7 @@
         <span class="role-icon">🎮</span>
         <div>
           <div class="role-name">מגבש</div>
-          <div class="role-desc">שליטה במירוץ, התחל/עצור, הגדרות טכניאן</div>
+          <div class="role-desc">שליטה במירוץ, התחל/עצור, הגדרות טכנאי</div>
         </div>
       </button>
 
@@ -256,10 +256,10 @@
         </div>
       </div>
 
-      <!-- הגדרות טכניאן (מתקפל) -->
+      <!-- הגדרות טכנאי (מתקפל) -->
       <div class="mb-12">
         <div class="collapsible-header" onclick="toggleCollapsible('tech-body','tech-arrow')">
-          <span>🔧 הגדרות טכניאן</span>
+          <span>🔧 הגדרות טכנאי</span>
           <span class="collapsible-arrow" id="tech-arrow">▼</span>
         </div>
         <div class="collapsible-body" id="tech-body">
@@ -640,22 +640,25 @@ function enterAs(role) {
   badge.textContent = labels[role];
   badge.className   = 'badge ' + (role === 'admin' ? 'badge-warning' : role === 'operator' ? 'badge-info' : 'badge-success');
 
+  // ודא שלא נשאר inline style מוסתר על הדפים
+  ['operator-page','evaluator-page','admin-page'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+
   if (role === 'admin') {
     showPage('admin-page');
     document.getElementById('view-tabs').style.display = 'none';
     renderAdminUsers();
-  } else if (role === 'evaluator') {
-    showPage('evaluator-page');
-    document.getElementById('view-tabs').style.display = 'none';
-    // הסתר תצוגת מגבש — מעריך לא יכול לגשת
-    const opPage = document.getElementById('operator-page');
-    if (opPage) opPage.style.display = 'none';
   } else {
-    showPage('operator-page');
-    document.getElementById('view-tabs').style.display = 'none';
-    // הסתר תצוגת מעריך — מגבש לא יכול לגשת
-    const evPage = document.getElementById('evaluator-page');
-    if (evPage) evPage.style.display = 'none';
+    // מגבש ומעריך — שני הטאבים גלויים, ניתן לעבור ביניהם חופשי
+    document.getElementById('view-tabs').style.display = '';
+    const startPage = role === 'evaluator' ? 'evaluator-page' : 'operator-page';
+    showPage(startPage);
+    // סנכרן הדגשת הטאב
+    document.querySelectorAll('[data-view]').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === startPage);
+    });
   }
 
   initAntennaButtons();
