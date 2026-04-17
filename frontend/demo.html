@@ -653,8 +653,8 @@ const DEMO_SHEETS_SYNC_ENABLED = !!(typeof APP_CONFIG !== 'undefined' && APP_CON
 
 // ── בחירת משתמש לפני כניסה ────────────────────────────
 function toggleUserPicker(pickerId) {
-  const roleMap = { 'operator-picker': 'מגבש', 'evaluator-picker': 'מעריך' };
-  const roleKey = { 'operator-picker': 'operator', 'evaluator-picker': 'evaluator' };
+  const roleKey      = { 'operator-picker': 'operator', 'evaluator-picker': 'evaluator' };
+  const roleMatches  = { 'operator': ['מגבש','מגבשת'], 'evaluator': ['מעריך','מעריכה'] };
   const el = document.getElementById(pickerId);
   if (!el) return;
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
@@ -663,9 +663,8 @@ function toggleUserPicker(pickerId) {
     const other = document.getElementById(id);
     if (other && id !== pickerId) other.style.display = 'none';
   });
-  const roleHe = roleMap[pickerId];
-  const role   = roleKey[pickerId];
-  const users  = DEMO_USERS.filter(u => u.role === roleHe || u.role === roleHe.replace('מגבש','מגבש'));
+  const role  = roleKey[pickerId];
+  const users = DEMO_USERS.filter(u => roleMatches[role].includes(u.role));
   if (!users.length) { enterAs(role, null); return; }
   el.innerHTML = users.map((u, i) => `
     <div onclick="enterAs('${role}', ${DEMO_USERS.indexOf(u)})"
@@ -1661,7 +1660,8 @@ function buildMockGroupPool(groupId) {
   // RSSI ואנטנה קבועים — תוצאות עקביות בין סבבים
   const FIXED_RSSI    = [-48,-52,-59,-44,-63,-55,-41,-67,-50,-57];
   const FIXED_ANTENNA = [  1,  2,  1,  3,  2,  4,  1,  2,  3,  4];
-  const teamNum = operatorTeam != null ? String(operatorTeam).padStart(2,'0') : groupId;
+  // teamId תמיד מייצג צוות קבוע (לא תחנה). אם לא נבחר — ברירת מחדל '01'
+  const teamNum = operatorTeam != null ? String(operatorTeam).padStart(2,'0') : '01';
   const pool = [];
   for (let i = 0; i < 10; i++) {
     const participantId = String(i + 1).padStart(4, '0');
