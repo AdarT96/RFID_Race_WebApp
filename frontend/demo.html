@@ -3,10 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מערכת תזמון RFID — הדגמה</title>
+  <title>RFID Race — הדגמה</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="css/main.css">
   <style>
+    @media (max-width: 520px) {
+      .navbar-brand .brand-title { display: none; }
+      #conn-label { display: none; }
+    }
+
+    /* ── תחנות ── */
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .station-card-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 14px 10px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: center;
+      width: 100%;
+    }
+    .station-card-btn:hover { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+    .station-card-btn .st-icon { font-size: 30px; }
+    .station-card-btn .st-name { font-size: 13px; font-weight: 700; color: var(--text); }
+
+    #station-modal .modal-box { max-width: 820px; max-height: 92vh; }
+    .station-video-wrap {
+      position: relative; padding-bottom: 56.25%; height: 0;
+      overflow: hidden; border-radius: 10px; background: #000; margin-bottom: 16px;
+    }
+    .station-video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+    .station-tips { list-style: none; padding: 0; margin: 0; }
+    .station-tips li { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .station-tips li:last-child { border-bottom: none; }
+    .station-tips li::before { content: '✓ '; color: var(--success); font-weight: 700; }
+
     .demo-banner {
       background: linear-gradient(90deg, #7c3aed, #4f46e5);
       color: #fff;
@@ -99,7 +137,7 @@
     <div class="auth-card">
       <div class="auth-logo">
         <div class="icon">📡</div>
-        <h1>מערכת תזמון RFID</h1>
+        <h1>RFID Race</h1>
         <p>הדגמה — לחץ על תפקיד כדי להיכנס</p>
       </div>
 
@@ -137,7 +175,7 @@
   <nav class="navbar">
     <div class="navbar-brand">
       <span class="logo">📡</span>
-      <span>מערכת תזמון RFID</span>
+      <span class="brand-title">RFID Race</span>
     </div>
     <div class="navbar-actions">
       <div class="conn-indicator">
@@ -243,6 +281,32 @@
         </div>
       </div>
 
+      <!-- רשימת משתתפים (גלובלית להערות כלליות) -->
+      <div class="mb-12">
+        <div class="collapsible-header" onclick="toggleCollapsible('gp-body','gp-arrow')">
+          <span>👥 רשימת משתתפים (להערות כלליות)</span>
+          <span class="collapsible-arrow" id="gp-arrow">▼</span>
+        </div>
+        <div class="collapsible-body" id="gp-body">
+          <p style="font-size:13px; color:var(--text-muted); margin:8px 0 10px">
+            שורה לכל משתתף בפורמט: <strong>מספר_משתתף,מספר_צוות</strong> (למשל <code>5,3</code>).
+            הרשימה נשמרת מקומית עד למחיקה מלאה.
+          </p>
+          <textarea id="gp-input" class="form-input" rows="6" style="width:100%; font-family:monospace; resize:vertical" placeholder="1,1&#10;2,1&#10;3,2&#10;4,2"></textarea>
+          <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="saveGeneralParticipants()" style="padding:8px 16px">💾 שמור רשימה</button>
+            <span id="gp-count-info" style="font-size:13px; color:var(--text-muted); align-self:center"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- מידע תחנות -->
+      <div class="section mb-12">
+        <h3 class="mb-8">📋 מידע תחנות</h3>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px">בחר תחנה לצפייה בהסבר וסרטון הדרכה</p>
+        <div class="station-grid" id="station-grid"></div>
+      </div>
+
     </div><!-- /operator-page -->
 
 
@@ -308,6 +372,40 @@
               </tr>
             </thead>
             <tbody id="lb-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- הערות כלליות -->
+      <div class="section mb-16" style="margin-top:16px">
+        <h3 class="mb-8">📝 הערות כלליות</h3>
+        <p style="font-size:13px; margin-bottom:10px">לחץ על <strong>+</strong> ליד משתתף בטבלה למטה, ואז בחר תיוג או כתוב הערה.</p>
+        <div class="tag-pills mb-12" id="gn-pill-bar"></div>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap">
+          <input id="gn-custom-input" class="form-input" style="flex:1; min-width:160px; padding:8px 12px; font-size:14px" placeholder="כתוב הערה חופשית…" onkeydown="if(event.key==='Enter') applyGeneralCustomNote()">
+          <button class="btn btn-primary" onclick="applyGeneralCustomNote()" style="padding:8px 16px; white-space:nowrap">➕ הוסף</button>
+        </div>
+        <div id="gn-selected-info" style="font-size:13px; color:var(--text-muted)">לא נבחר משתתף.</div>
+      </div>
+
+      <!-- טבלת משתתפים גלובלית -->
+      <div class="section">
+        <div class="flex flex-center flex-between mb-12">
+          <h3>📋 משתתפים והערות כלליות</h3>
+          <span class="badge badge-info" id="gn-count-badge">0</span>
+        </div>
+        <div id="gn-table-wrap">
+          <div class="no-data" id="gn-no-data">אין משתתפים — הזן רשימה בדף המגבש.</div>
+          <table class="lb-table" id="gn-table" style="display:none">
+            <thead>
+              <tr>
+                <th>צוות</th>
+                <th>משתתף</th>
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="gn-body"></tbody>
           </table>
         </div>
       </div>
@@ -402,6 +500,17 @@
   </div>
 </div>
 
+<!-- ════ חלון תחנה ════ -->
+<div class="modal-overlay" id="station-modal" onclick="if(event.target===this)closeStationModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="station-modal-title"></h3>
+      <button class="modal-close" onclick="closeStationModal()">✕</button>
+    </div>
+    <div id="station-modal-body"></div>
+  </div>
+</div>
+
 <!-- הודעות קופצות -->
 <div id="toast-container"></div>
 
@@ -410,6 +519,74 @@
 // ── הגדרות ────────────────────────────────────────────
 const COMMENT_TAGS = ['טכניקה', 'מצוינות', 'מהירות', 'עבודת צוות', 'דיוק', 'מנהיגות'];
 const ANTENNAS     = 8;
+
+// ── נתוני תחנות (ערוך כאן את התחנות שלך) ─────────────
+const STATIONS = [
+  {
+    id: 1,
+    name: 'תחנה 1',
+    icon: '🏁',
+    desc: 'תיאור תחנה 1 — כתוב כאן הסבר מפורט על המשימה, הציוד הנדרש, וסדר הפעולות.',
+    video: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    tips: ['הקפידו על ציוד מגן לפני תחילת הפעילות', 'שימו לב לסדר הפעולות', 'עבדו בצוות']
+  },
+  {
+    id: 2,
+    name: 'תחנה 2',
+    icon: '⚡',
+    desc: 'תיאור תחנה 2 — כתוב כאן הסבר מפורט על המשימה, הציוד הנדרש, וסדר הפעולות.',
+    video: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    tips: ['בצעו תחילה הדגמה', 'ודאו שכולם מבינים לפני הביצוע', 'שמרו על קצב אחיד']
+  },
+  {
+    id: 3,
+    name: 'תחנה 3',
+    icon: '🎯',
+    desc: 'תיאור תחנה 3 — כתוב כאן הסבר מפורט על המשימה, הציוד הנדרש, וסדר הפעולות.',
+    video: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    tips: ['דיוק עדיף על מהירות', 'אל תדלגו על שלבים', 'ספרו ציוד לאחר הסיום']
+  },
+  {
+    id: 4,
+    name: 'תחנה 4',
+    icon: '🚀',
+    desc: 'תיאור תחנה 4 — כתוב כאן הסבר מפורט על המשימה, הציוד הנדרש, וסדר הפעולות.',
+    video: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    tips: ['בדקו ציוד לפני התחלה', 'תקשורת טובה היא המפתח', 'זמן אכפת — תתייעלו']
+  }
+];
+
+// ── פונקציות תחנות ────────────────────────────────────
+function renderStationGrid() {
+  const grid = document.getElementById('station-grid');
+  if (!grid) return;
+  grid.innerHTML = STATIONS.map(s => `
+    <button class="station-card-btn" onclick="openStationModal(${s.id})">
+      <span class="st-icon">${s.icon}</span>
+      <span class="st-name">${s.name}</span>
+    </button>
+  `).join('');
+}
+
+function openStationModal(id) {
+  const s = STATIONS.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('station-modal-title').textContent = s.icon + ' ' + s.name;
+  document.getElementById('station-modal-body').innerHTML = `
+    <div class="station-video-wrap">
+      <iframe src="${s.video}?rel=0" allowfullscreen></iframe>
+    </div>
+    <p style="line-height:1.7; margin-bottom:16px">${s.desc}</p>
+    ${s.tips.length ? `<h4 style="margin-bottom:10px">💡 טיפים</h4>
+    <ul class="station-tips">${s.tips.map(t => `<li>${t}</li>`).join('')}</ul>` : ''}
+  `;
+  document.getElementById('station-modal').classList.add('open');
+}
+
+function closeStationModal() {
+  document.getElementById('station-modal').classList.remove('open');
+  document.getElementById('station-modal-body').innerHTML = ''; // עצור סרטון
+}
 
 // ── מצב חוץ ──────────────────────────────────────────
 (function() {
@@ -483,6 +660,9 @@ function enterAs(role) {
 
   initAntennaButtons();
   initCommentPills();
+  renderStationGrid();
+  loadGeneralData();
+  refreshGeneralUI();
   startUiTick();
 }
 
@@ -798,6 +978,170 @@ function fmtTime(ms) {
   return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 }
 
+// ── הערות כלליות (גלובליות, ללא תלות בתחנה) ──────────
+const GN_LS_PARTICIPANTS = 'demo_general_participants';
+const GN_LS_NOTES        = 'demo_general_notes';
+let generalParticipants = []; // [{ pid, team }]
+let generalNotes        = {}; // { pid: [note, ...] }
+let selectedGeneralPid  = null;
+let gnSyncedKeys        = new Set(); // pid|noteIndex
+
+function loadGeneralData() {
+  try {
+    const p = JSON.parse(localStorage.getItem(GN_LS_PARTICIPANTS) || '[]');
+    if (Array.isArray(p)) generalParticipants = p;
+  } catch (e) { generalParticipants = []; }
+  try {
+    const n = JSON.parse(localStorage.getItem(GN_LS_NOTES) || '{}');
+    if (n && typeof n === 'object') generalNotes = n;
+  } catch (e) { generalNotes = {}; }
+}
+
+function persistGeneralData() {
+  localStorage.setItem(GN_LS_PARTICIPANTS, JSON.stringify(generalParticipants));
+  localStorage.setItem(GN_LS_NOTES, JSON.stringify(generalNotes));
+}
+
+function saveGeneralParticipants() {
+  const ta = document.getElementById('gp-input');
+  if (!ta) return;
+  const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const parsed = [];
+  const seen = new Set();
+  const errors = [];
+  lines.forEach((line, i) => {
+    const parts = line.split(',').map(x => x.trim());
+    if (parts.length !== 2) { errors.push(`שורה ${i+1}: פורמט לא תקין`); return; }
+    const pid  = parseInt(parts[0], 10);
+    const team = parseInt(parts[1], 10);
+    if (!Number.isFinite(pid) || !Number.isFinite(team)) { errors.push(`שורה ${i+1}: מספרים לא תקינים`); return; }
+    if (seen.has(pid)) { errors.push(`שורה ${i+1}: משתתף ${pid} כפול`); return; }
+    seen.add(pid);
+    parsed.push({ pid, team });
+  });
+  if (errors.length) { showToast(errors[0], 'error'); return; }
+  generalParticipants = parsed;
+  // נקה הערות של משתתפים שכבר לא ברשימה
+  Object.keys(generalNotes).forEach(k => { if (!seen.has(parseInt(k,10))) delete generalNotes[k]; });
+  persistGeneralData();
+  refreshGeneralUI();
+  showToast(`נשמרו ${parsed.length} משתתפים`, 'success');
+}
+
+function refreshGeneralUI() {
+  // טקסטרייה
+  const ta = document.getElementById('gp-input');
+  if (ta && document.activeElement !== ta) {
+    ta.value = generalParticipants.map(p => `${p.pid},${p.team}`).join('\n');
+  }
+  const info = document.getElementById('gp-count-info');
+  if (info) info.textContent = generalParticipants.length ? `${generalParticipants.length} משתתפים נשמרו` : '';
+  renderGeneralTable();
+  initGeneralPills();
+}
+
+function initGeneralPills() {
+  const c = document.getElementById('gn-pill-bar');
+  if (!c) return;
+  c.innerHTML = '';
+  COMMENT_TAGS.forEach(tag => {
+    const el = document.createElement('span');
+    el.className = 'tag-pill';
+    el.textContent = tag;
+    el.onclick = () => applyGeneralTag(tag);
+    c.appendChild(el);
+  });
+}
+
+function renderGeneralTable() {
+  const noData = document.getElementById('gn-no-data');
+  const table  = document.getElementById('gn-table');
+  const tbody  = document.getElementById('gn-body');
+  const badge  = document.getElementById('gn-count-badge');
+  if (!tbody) return;
+  if (!generalParticipants.length) {
+    if (noData) noData.style.display = '';
+    if (table)  table.style.display  = 'none';
+    if (badge)  badge.textContent    = '0';
+    return;
+  }
+  if (noData) noData.style.display = 'none';
+  if (table)  table.style.display  = '';
+  const sorted = generalParticipants.slice().sort((a,b) => a.team - b.team || a.pid - b.pid);
+  if (badge) badge.textContent = String(sorted.length);
+  tbody.innerHTML = sorted.map(p => {
+    const notes = generalNotes[p.pid] || [];
+    const pills = notes.map((n, i) =>
+      `<span class="tag-pill" style="font-size:11px;padding:3px 8px" title="לחץ למחיקה" onclick="removeGeneralNote(${p.pid}, ${i})">${escapeHtml(n)} ✕</span>`
+    ).join(' ');
+    const isSel = selectedGeneralPid === p.pid;
+    return `
+      <tr style="${isSel ? 'background:rgba(99,102,241,0.12)' : ''}">
+        <td>${p.team}</td>
+        <td><strong>${p.pid}</strong></td>
+        <td>${pills || '<span style="color:var(--text-muted); font-size:12px">—</span>'}</td>
+        <td><button class="btn btn-ghost" style="padding:4px 10px; font-size:14px" onclick="selectGeneralParticipant(${p.pid})" title="בחר להוספת הערה">+</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function selectGeneralParticipant(pid) {
+  selectedGeneralPid = pid;
+  const p = generalParticipants.find(x => x.pid === pid);
+  const info = document.getElementById('gn-selected-info');
+  if (info && p) info.textContent = `נבחר: משתתף ${p.pid} (צוות ${p.team})`;
+  renderGeneralTable();
+  showToast(`משתתף ${pid} נבחר`, 'info');
+}
+
+function applyGeneralTag(tag) {
+  if (selectedGeneralPid == null) { showToast('בחר משתתף קודם (לחץ + ליד שורה)', 'error'); return; }
+  const arr = generalNotes[selectedGeneralPid] = generalNotes[selectedGeneralPid] || [];
+  if (arr.includes(tag)) { showToast('התיוג כבר קיים', 'info'); return; }
+  arr.push(tag);
+  persistGeneralData();
+  renderGeneralTable();
+  showToast(`"${tag}" נוסף למשתתף ${selectedGeneralPid}`, 'success');
+}
+
+function applyGeneralCustomNote() {
+  const inp = document.getElementById('gn-custom-input');
+  if (!inp) return;
+  const txt = (inp.value || '').trim();
+  if (!txt) return;
+  if (selectedGeneralPid == null) { showToast('בחר משתתף קודם', 'error'); return; }
+  const arr = generalNotes[selectedGeneralPid] = generalNotes[selectedGeneralPid] || [];
+  arr.push(txt);
+  inp.value = '';
+  persistGeneralData();
+  renderGeneralTable();
+  showToast(`הערה נוספה למשתתף ${selectedGeneralPid}`, 'success');
+}
+
+function removeGeneralNote(pid, idx) {
+  const arr = generalNotes[pid];
+  if (!arr || !arr[idx]) return;
+  arr.splice(idx, 1);
+  if (!arr.length) delete generalNotes[pid];
+  persistGeneralData();
+  renderGeneralTable();
+}
+
+function clearGeneralData() {
+  generalParticipants = [];
+  generalNotes = {};
+  selectedGeneralPid = null;
+  gnSyncedKeys.clear();
+  localStorage.removeItem(GN_LS_PARTICIPANTS);
+  localStorage.removeItem(GN_LS_NOTES);
+  refreshGeneralUI();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 // ── תיוגים ────────────────────────────────────────────
 function initCommentPills() {
   const c = document.getElementById('comment-pill-bar');
@@ -911,6 +1255,8 @@ function simClear() {
   if (histEl) histEl.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:30px">אין מרוצים עדיין — התחל מירוץ מתצוגת המגבש.</div>';
   updateStatCards();
   updateLeaderboard();
+  // אפס גם הערות כלליות ורשימת משתתפים (איפוס מלא)
+  clearGeneralData();
   // שדר איפוס לטאב המעריך
   localStorage.removeItem('demo_race_state');
   broadcastRaceState();
@@ -1035,9 +1381,39 @@ async function simSyncSheets(isAuto = false) {
         total++;
       }
     }
+    // ── סנכרון הערות כלליות (משתתפים גלובליים) ──
+    let gnTotal = 0;
+    if (!isAuto) gnSyncedKeys.clear();
+    for (const p of generalParticipants) {
+      const notes = generalNotes[p.pid] || [];
+      for (let i = 0; i < notes.length; i++) {
+        const key = `gn|${p.pid}|${i}|${notes[i]}`;
+        if (isAuto && gnSyncedKeys.has(key)) continue;
+        const bodyObj = {
+          type: 'general_note',
+          participant_id: p.pid,
+          team_id: p.team,
+          note: notes[i],
+          note_index: i,
+          ts_ms: Date.now()
+        };
+        if (APP_CONFIG.sheetsApiKey && !APP_CONFIG.sheetsApiKey.startsWith('YOUR_')) {
+          bodyObj.key = APP_CONFIG.sheetsApiKey;
+        }
+        try {
+          const res = await fetch(APP_CONFIG.sheetsApiUrl, {
+            method: 'POST',
+            body: JSON.stringify(bodyObj)
+          });
+          if (res.ok) { gnSyncedKeys.add(key); gnTotal++; }
+        } catch (_) { /* בלעי בלי לעצור */ }
+      }
+    }
+
     if (!isAuto) {
-      if (total === 0) showToast('אין רשומות חדשות לסנכרון', 'info');
-      else showToast(`סונכרנו ${total} רשומות חדשות ל-Google Sheets ✓`, 'success');
+      const sumTotal = total + gnTotal;
+      if (sumTotal === 0) showToast('אין רשומות חדשות לסנכרון', 'info');
+      else showToast(`סונכרנו ${total} רשומות מירוץ + ${gnTotal} הערות כלליות ✓`, 'success');
     }
   } catch (e) {
     if (!isAuto) showToast('לא ניתן להגיע ל-Sheets API', 'error');
@@ -1577,6 +1953,12 @@ window.selectParticipant = selectParticipant;
 window.demoApprove       = demoApprove;
 window.demoReject        = demoReject;
 window.demoPromote       = demoPromote;
+
+// הערות כלליות
+window.saveGeneralParticipants  = saveGeneralParticipants;
+window.selectGeneralParticipant = selectGeneralParticipant;
+window.applyGeneralCustomNote   = applyGeneralCustomNote;
+window.removeGeneralNote        = removeGeneralNote;
 </script>
 </body>
 </html>
