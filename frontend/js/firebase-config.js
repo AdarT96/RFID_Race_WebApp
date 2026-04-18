@@ -39,7 +39,7 @@ const APP_CONFIG = {
   participantDigits: 4,
 
   // Google Apps Script endpoint (deploy as web app, paste URL here)
-  sheetsApiUrl: "https://script.google.com/macros/s/AKfycby2g7g0k62h0Brd8o5bgW3hktdGNXbWfAJkgBoMU3xGvmmid7T1wyZwyLcs8Bs4y138Pw/exec",
+  sheetsApiUrl: "https://script.google.com/macros/s/AKfycbwnpsMA1a2uulK3vV6QdHb0kI5SAtQTY7UH2MPM1SEGaSWkUMTxHgS1AbHZuPTXhykZtg/exec",
   sheetsApiKey: "YOUR_SECRET_KEY_HERE",
   sheetsDeviceName: "ESP_01",
 
