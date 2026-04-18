@@ -530,6 +530,15 @@
         <div id="users-list"></div>
       </div>
 
+      <!-- איפוס גיבוש -->
+      <div class="card mb-16" style="border:1px solid var(--danger)">
+        <div class="flex flex-center flex-between mb-8">
+          <h2>🔄 איפוס גיבוש</h2>
+        </div>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:16px">מאפס את כל נתוני הגיבוש — ציונים, הערות, סבבים ומרוצים. פעולה זו מתחילה אירוע מחדש ואינה הפיכה.</p>
+        <button class="btn btn-danger" style="width:100%; padding:14px; font-size:16px; font-weight:700" onclick="adminResetEvent()">🔄 איפוס גיבוש</button>
+      </div>
+
       <!-- היסטוריית מרוצים -->
       <div class="card mb-16">
         <h2 class="mb-12">🏁 היסטוריית מרוצים</h2>
@@ -2318,6 +2327,48 @@ function _renderMultiLineChart(ctx, snapshots) {
   });
 }
 
+// ── איפוס גיבוש (מנהל) ───────────────────────────────
+function adminResetEvent() {
+  const confirmed = confirm(
+    'איפוס גיבוש\n\n' +
+    'פעולה זו תמחק את כל הנתונים:\n' +
+    '• ציונים סופיים לתחנות\n' +
+    '• הערות כלליות ורשימת משתתפים\n' +
+    '• טבלאות דירוג וסבבים\n' +
+    '• היסטוריית מרוצים\n\n' +
+    'האם אתה בטוח שברצונך להתחיל אירוע מחדש?'
+  );
+  if (!confirmed) return;
+
+  // איפוס מלא — כמו simClear אבל ללא confirm נוסף
+  scanning = false;
+  if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
+  if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
+  leaderboard = [];
+  roundSnapshotsByGroup = {};
+  roundByGroup = {};
+  round = 0;
+  raceHistory = [];
+  demoSheetsSyncedKeys.clear();
+  lastAutoSheetsHash = '';
+  selectedEpc = null;
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  const btnStart = document.getElementById('btn-start');
+  const btnStop  = document.getElementById('btn-stop');
+  if (btnStart) btnStart.disabled = false;
+  if (btnStop)  btnStop.disabled  = false;
+  const adminCnt = document.getElementById('admin-races-count');
+  if (adminCnt) adminCnt.textContent = '0';
+  const histEl = document.getElementById('race-history-list');
+  if (histEl) histEl.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:30px">אין מרוצים עדיין — התחל מירוץ מתצוגת המגבש.</div>';
+  updateStatCards();
+  updateLeaderboard();
+  clearGeneralData();
+  localStorage.removeItem('demo_race_state');
+  broadcastRaceState();
+  showToast('הגיבוש אופס — מוכן לאירוע חדש', 'success');
+}
+
 // ── חשיפה לגלובל ──────────────────────────────────────
 window.enterAs           = enterAs;
 window.resetToLogin      = resetToLogin;
@@ -2344,6 +2395,7 @@ window.selectParticipant = selectParticipant;
 window.demoApprove       = demoApprove;
 window.demoReject        = demoReject;
 window.demoPromote       = demoPromote;
+window.adminResetEvent   = adminResetEvent;
 
 // הערות כלליות
 window.toggleUserPicker         = toggleUserPicker;
