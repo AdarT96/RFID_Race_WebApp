@@ -400,15 +400,21 @@
                 <th>צוות</th>
                 <th>משתתף</th>
                 <th id="lb-col-score">זמן ראשון</th>
-                <th>מיקום אחרון</th>
                 <th>ממוצע</th>
-                <th>RSSI</th>
-                <th>תיוגים</th>
+                <th>הערות</th>
               </tr>
             </thead>
             <tbody id="lb-body"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- ציון סופי לתחנה — מוצמד לטבלת הדירוג -->
+      <div class="section mb-16" style="margin-top:16px">
+        <h3 class="mb-4">🎯 ציון סופי לתחנה</h3>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px">ערך-חוסן · לחץ שורה בטבלה לבחירת משתתף</p>
+        <div class="score-btn-row mb-12" id="score-btn-row"></div>
+        <div id="score-selected-info" style="font-size:13px; color:var(--text-muted)">לא נבחר משתתף.</div>
       </div>
 
       <!-- הערות כלליות -->
@@ -444,15 +450,6 @@
             <tbody id="gn-body"></tbody>
           </table>
         </div>
-      </div>
-
-      <!-- ציון סופי לתחנה -->
-      <div class="section mb-16">
-        <h3 class="mb-4">🎯 ציון סופי לתחנה</h3>
-        <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px">ערך-חוסן</p>
-        <p style="font-size:13px; margin-bottom:10px">לחץ על <strong>+</strong> ליד משתתף, ובחר ציון 1–7.</p>
-        <div class="score-btn-row mb-12" id="score-btn-row"></div>
-        <div id="score-selected-info" style="font-size:13px; color:var(--text-muted)">לא נבחר משתתף.</div>
       </div>
 
       <!-- כפתורי הורדה וסנכרון (בסוף הדף) -->
@@ -2109,6 +2106,9 @@ updateLeaderboard = function() {
     tr.onclick = (ev) => {
       if (ev.target.closest('button')) return;
       selectParticipant(r.epc, r.participantId);
+      // בחר גם לציון — אם המשתתף ברשימה הכללית
+      const gp = generalParticipants.find(p => Number(p.pid) === Number(r.participantId));
+      if (gp) selectGeneralParticipant(gp.pid);
     };
     tr.className = place <= 3 ? `place-${place}` : '';
     const timeStr = hasLaps
@@ -2118,7 +2118,6 @@ updateLeaderboard = function() {
 
     // היסטוריית מיקומים
     const hist = buildDemoEpcHistory(r.epc);
-    const lastPlaceStr = hist.length > 0 ? `#${hist[hist.length - 1]}` : '—';
     const avgPlaceStr  = hist.length > 0
       ? (hist.reduce((s, v) => s + v, 0) / hist.length).toFixed(1)
       : '—';
@@ -2126,11 +2125,9 @@ updateLeaderboard = function() {
     tr.innerHTML = `
       <td><span class="place-badge">${place}</span></td>
       <td><strong>${r.teamId}</strong></td>
-      <td><div>${r.participantId}</div><div class="epc-raw">${r.epc}</div></td>
+      <td>${r.participantId}</td>
       <td>${timeStr}</td>
-      <td class="hist-cell">${lastPlaceStr}</td>
       <td class="hist-cell">${avgPlaceStr}</td>
-      <td style="color:var(--text-muted)">${r.rssi} dBm</td>
       <td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${comments}
       <button onclick="selectParticipant('${r.epc}','${r.participantId}')" style="font-size:11px;padding:2px 8px;background:var(--surface);border:1px solid var(--border);border-radius:999px;cursor:pointer;color:var(--text-muted)">+</button>
       </div></td>`;
