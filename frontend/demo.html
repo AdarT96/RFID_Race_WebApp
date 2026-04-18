@@ -1398,7 +1398,7 @@ function applyScore(score) {
   renderGeneralTable();
   renderScoreTable();
   renderSummaryTable();
-  showToast(`ציון ${score} נשמר למשתתף ${selectedGeneralPid} · תחנה ${activeGroup}`, 'success');
+  showToast(`ציון ${score} נשמר למשתתף ${selectedGeneralPid} · ${getStationLabel(activeGroup)}`, 'success');
 }
 
 function removeScore(pid) {
@@ -1418,7 +1418,7 @@ function renderScoreTable() {
       const p = generalParticipants.find(x => x.pid === selectedGeneralPid);
       const curScore = (stationScores[activeGroup] || {})[selectedGeneralPid];
       info.textContent = p
-        ? `נבחר: משתתף ${p.pid} (צוות ${p.team}) · תחנה ${activeGroup}${curScore != null ? ` · ציון נוכחי: ${curScore}` : ''}`
+        ? `נבחר: משתתף ${p.pid} (צוות ${p.team}) · ${getStationLabel(activeGroup)}${curScore != null ? ` · ציון נוכחי: ${curScore}` : ''}`
         : 'לא נבחר משתתף.';
     } else {
       info.textContent = 'לא נבחר משתתף.';
@@ -1986,6 +1986,12 @@ const PARTICIPANTS_PER_GROUP = 20;
 let activeGroup = '01';
 let roundSnapshotsByGroup = {};
 
+function getStationLabel(groupId) {
+  const id = parseInt(groupId, 10);
+  const st = STATIONS.find(s => s.id === id);
+  return st ? st.name : ('תחנה ' + String(groupId).padStart(2, '0'));
+}
+
 function ensureGroupSelector() {
   if (currentRole === 'admin') return;
   const navActions = document.querySelector('.navbar-actions');
@@ -1997,7 +2003,7 @@ function ensureGroupSelector() {
     wrap.style.display = 'flex';
     wrap.style.alignItems = 'center';
     wrap.style.gap = '6px';
-      wrap.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">תחנה:</span><select id="group-select" class="form-select" style="width:92px;padding:6px 10px"></select>';
+      wrap.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">תחנה:</span><select id="group-select" class="form-select" style="width:160px;padding:6px 10px"></select>';
     const badge = document.getElementById('role-badge');
     if (badge && badge.parentNode === navActions) navActions.insertBefore(wrap, badge);
     else navActions.prepend(wrap);
@@ -2008,9 +2014,10 @@ function ensureGroupSelector() {
   if (sel && sel.options.length === 0) {
     for (let i = 1; i <= GROUP_COUNT; i++) {
       const v = String(i).padStart(2, '0');
+      const st = STATIONS.find(s => s.id === i);
       const o = document.createElement('option');
       o.value = v;
-      o.textContent = 'תחנה ' + v;
+      o.textContent = st ? st.name : ('תחנה ' + v);
       sel.appendChild(o);
     }
   }
@@ -2165,7 +2172,7 @@ updateLeaderboard = function() {
   if (rows.length === 0) {
     noData.style.display = '';
     table.style.display = 'none';
-    noData.textContent = `אין נתונים לתחנה ${activeGroup} כרגע.`;
+    noData.textContent = `אין נתונים ל${getStationLabel(activeGroup)} כרגע.`;
     return;
   }
   noData.style.display = 'none';
