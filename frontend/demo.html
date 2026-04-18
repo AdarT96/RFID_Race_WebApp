@@ -34,6 +34,18 @@
     .station-card-btn .st-icon { font-size: 30px; }
     .station-card-btn .st-name { font-size: 13px; font-weight: 700; color: var(--text); }
 
+    /* ── ציונים 1-7 ── */
+    .score-btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+    .score-btn {
+      min-width:46px; height:46px; border-radius:10px; border:2px solid var(--border);
+      background:var(--surface); color:var(--text); font-weight:800; font-size:18px; cursor:pointer;
+      transition: transform 0.08s, border-color 0.15s;
+    }
+    .score-btn:hover { transform: scale(1.05); }
+    .score-cell { display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:28px; border-radius:6px; font-weight:800; color:#000; padding:0 8px; }
+    .ev-subpage { display:none; }
+    .ev-subpage.active { display:block; }
+
     #station-modal .modal-box { max-width: 820px; max-height: 92vh; }
     .station-video-wrap {
       position: relative; padding-bottom: 56.25%; height: 0;
@@ -336,10 +348,14 @@
         </div>
       </div>
 
-      <div class="grid-2 mb-16">
-        <button class="btn btn-info btn-xl" onclick="simDownloadCsv()">📥 הורד CSV</button>
-        <button class="btn btn-info btn-xl" onclick="simSyncSheets()">📊 סנכרן Sheets</button>
+      <!-- טאבי דפי מעריך -->
+      <div class="tab-bar mb-16" id="ev-subtabs">
+        <button class="tab-btn active" data-evtab="ev-main">🏠 ראשי</button>
+        <button class="tab-btn" data-evtab="ev-summary">📊 סיכום ציונים</button>
       </div>
+
+      <!-- ══ דף ראשי ══ -->
+      <div class="ev-subpage active" id="ev-main">
 
       <!-- תיוגים -->
       <div class="section mb-16">
@@ -395,7 +411,7 @@
       </div>
 
       <!-- טבלת משתתפים גלובלית -->
-      <div class="section">
+      <div class="section mb-16">
         <div class="flex flex-center flex-between mb-12">
           <h3>📋 משתתפים והערות כלליות</h3>
           <span class="badge badge-info" id="gn-count-badge">0</span>
@@ -413,6 +429,59 @@
             </thead>
             <tbody id="gn-body"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- ציון סופי לתחנה -->
+      <div class="section mb-16">
+        <h3 class="mb-4">🎯 ציון סופי לתחנה</h3>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px">ערך-חוסן</p>
+        <p style="font-size:13px; margin-bottom:10px">לחץ על <strong>+</strong> ליד משתתף, ובחר ציון 1–7.</p>
+        <div class="score-btn-row mb-12" id="score-btn-row"></div>
+        <div id="score-selected-info" style="font-size:13px; color:var(--text-muted)">לא נבחר משתתף.</div>
+      </div>
+
+      <div id="score-table-wrap" class="section mb-16" style="display:none">
+        <div class="flex flex-center flex-between mb-12">
+          <h3>ציונים שניתנו · תחנה <span id="score-station-label">—</span></h3>
+        </div>
+        <table class="lb-table" id="score-table">
+          <thead>
+            <tr>
+              <th>צוות</th>
+              <th>משתתף</th>
+              <th>ציון</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="score-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- כפתורי הורדה וסנכרון (בסוף הדף) -->
+      <div class="grid-2 mt-16">
+        <button class="btn btn-info btn-xl" onclick="simDownloadCsv()">📥 הורד CSV</button>
+        <button class="btn btn-info btn-xl" onclick="simSyncSheets()">📊 סנכרן Sheets</button>
+      </div>
+
+      </div><!-- /ev-main -->
+
+      <!-- ══ דף סיכום ציונים ══ -->
+      <div class="ev-subpage" id="ev-summary" style="display:none">
+        <div class="section">
+          <div class="flex flex-center flex-between mb-12">
+            <h3>📊 סיכום ציונים — כל התחנות</h3>
+            <span class="badge badge-info" id="summary-count-badge">0</span>
+          </div>
+          <div id="summary-wrap">
+            <div class="no-data" id="summary-no-data">אין נתונים — הזן רשימת משתתפים והרץ סבבים.</div>
+            <div style="overflow-x:auto">
+              <table class="lb-table" id="summary-table" style="display:none; min-width:600px">
+                <thead id="summary-thead"></thead>
+                <tbody id="summary-tbody"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -717,7 +786,11 @@ function enterAs(role, userIdx) {
   initCommentPills();
   renderStationGrid();
   loadGeneralData();
+  loadStationScores();
+  initScoreButtons();
   refreshGeneralUI();
+  renderScoreTable();
+  renderSummaryTable();
   startUiTick();
 }
 
@@ -740,6 +813,10 @@ document.querySelectorAll('[data-view]').forEach(btn => {
     btn.classList.add('active');
     showPage(btn.dataset.view);
   });
+});
+
+document.querySelectorAll('[data-evtab]').forEach(btn => {
+  btn.addEventListener('click', () => switchEvTab(btn.dataset.evtab));
 });
 
 // ── סימולציית מירוץ ───────────────────────────────────
@@ -1100,6 +1177,8 @@ function refreshGeneralUI() {
   if (info) info.textContent = generalParticipants.length ? `${generalParticipants.length} משתתפים נשמרו` : '';
   renderGeneralTable();
   initGeneralPills();
+  renderScoreTable();
+  renderSummaryTable();
 }
 
 function initGeneralPills() {
@@ -1154,6 +1233,7 @@ function selectGeneralParticipant(pid) {
   const info = document.getElementById('gn-selected-info');
   if (info && p) info.textContent = `נבחר: משתתף ${p.pid} (צוות ${p.team})`;
   renderGeneralTable();
+  renderScoreTable();
   showToast(`משתתף ${pid} נבחר`, 'info');
 }
 
@@ -1199,7 +1279,190 @@ function clearGeneralData() {
   localStorage.removeItem(GN_LS_PARTICIPANTS);
   localStorage.removeItem(GN_LS_NOTES);
   localStorage.removeItem(GN_LS_TEAM);
+  stationScores = {};
+  scoreSyncedKeys.clear();
+  localStorage.removeItem(SCORE_LS_KEY);
   refreshGeneralUI();
+  renderScoreTable();
+  renderSummaryTable();
+}
+
+// ── ציון סופי לתחנה ──────────────────────────────────
+const SCORE_LS_KEY = 'demo_station_scores';
+let stationScores = {}; // { [stationId]: { [pid]: score } }
+let scoreSyncedKeys = new Set();
+
+function loadStationScores() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SCORE_LS_KEY) || '{}');
+    if (s && typeof s === 'object') stationScores = s;
+  } catch (e) { stationScores = {}; }
+}
+
+function persistStationScores() {
+  localStorage.setItem(SCORE_LS_KEY, JSON.stringify(stationScores));
+}
+
+function scoreColor(n) {
+  // 1=אדום (hue 0), 4=כתום-צהוב (hue 60), 7=ירוק (hue 120)
+  const hue = Math.max(0, Math.min(6, (n - 1))) * 20;
+  return `hsl(${hue}, 80%, 50%)`;
+}
+
+function initScoreButtons() {
+  const row = document.getElementById('score-btn-row');
+  if (!row) return;
+  row.innerHTML = '';
+  for (let n = 1; n <= 7; n++) {
+    const b = document.createElement('button');
+    b.className = 'score-btn';
+    b.textContent = n;
+    b.style.borderColor = scoreColor(n);
+    b.style.color = scoreColor(n);
+    b.onclick = () => applyScore(n);
+    row.appendChild(b);
+  }
+}
+
+function applyScore(score) {
+  if (selectedGeneralPid == null) { showToast('בחר משתתף קודם (לחץ + ליד שורה)', 'error'); return; }
+  const p = generalParticipants.find(x => x.pid === selectedGeneralPid);
+  if (!p) { showToast('משתתף לא נמצא ברשימה', 'error'); return; }
+  stationScores[activeGroup] = stationScores[activeGroup] || {};
+  stationScores[activeGroup][selectedGeneralPid] = score;
+  persistStationScores();
+  renderScoreTable();
+  renderSummaryTable();
+  showToast(`ציון ${score} נשמר למשתתף ${selectedGeneralPid} · תחנה ${activeGroup}`, 'success');
+}
+
+function removeScore(pid) {
+  if (!stationScores[activeGroup]) return;
+  delete stationScores[activeGroup][pid];
+  if (!Object.keys(stationScores[activeGroup]).length) delete stationScores[activeGroup];
+  persistStationScores();
+  renderScoreTable();
+  renderSummaryTable();
+}
+
+function renderScoreTable() {
+  const wrap = document.getElementById('score-table-wrap');
+  const tbody = document.getElementById('score-tbody');
+  const label = document.getElementById('score-station-label');
+  const info  = document.getElementById('score-selected-info');
+  if (info) {
+    if (selectedGeneralPid != null) {
+      const p = generalParticipants.find(x => x.pid === selectedGeneralPid);
+      const curScore = (stationScores[activeGroup] || {})[selectedGeneralPid];
+      info.textContent = p
+        ? `נבחר: משתתף ${p.pid} (צוות ${p.team}) · תחנה ${activeGroup}${curScore != null ? ` · ציון נוכחי: ${curScore}` : ''}`
+        : 'לא נבחר משתתף.';
+    } else {
+      info.textContent = 'לא נבחר משתתף.';
+    }
+  }
+  if (label) label.textContent = activeGroup || '—';
+  if (!tbody || !wrap) return;
+  const scoresForStation = stationScores[activeGroup] || {};
+  const entries = Object.keys(scoresForStation)
+    .map(pid => ({ pid: parseInt(pid, 10), score: scoresForStation[pid] }))
+    .filter(e => generalParticipants.some(p => p.pid === e.pid))
+    .sort((a, b) => b.score - a.score || a.pid - b.pid);
+  if (!entries.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  tbody.innerHTML = entries.map(e => {
+    const p = generalParticipants.find(x => x.pid === e.pid);
+    const bg = scoreColor(e.score);
+    return `
+      <tr>
+        <td>${p ? p.team : '—'}</td>
+        <td><strong>${e.pid}</strong></td>
+        <td><span class="score-cell" style="background:${bg}">${e.score}</span></td>
+        <td><button class="btn btn-ghost" style="padding:4px 10px; font-size:13px" onclick="removeScore(${e.pid})" title="מחק ציון">✕</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ── טאבים בדף המעריך ─────────────────────────────────
+function switchEvTab(tabId) {
+  document.querySelectorAll('[data-evtab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.evtab === tabId);
+  });
+  document.querySelectorAll('.ev-subpage').forEach(p => {
+    const on = p.id === tabId;
+    p.classList.toggle('active', on);
+    p.style.display = on ? '' : 'none';
+  });
+  if (tabId === 'ev-summary') renderSummaryTable();
+}
+
+// ── טבלת סיכום ציונים — כל התחנות ─────────────────────
+function renderSummaryTable() {
+  const tableEl = document.getElementById('summary-table');
+  const noData  = document.getElementById('summary-no-data');
+  const thead   = document.getElementById('summary-thead');
+  const tbody   = document.getElementById('summary-tbody');
+  const badge   = document.getElementById('summary-count-badge');
+  if (!tableEl || !thead || !tbody) return;
+
+  if (!generalParticipants.length) {
+    if (noData)  noData.style.display  = '';
+    tableEl.style.display = 'none';
+    if (badge) badge.textContent = '0';
+    return;
+  }
+
+  // אסוף תחנות שיש להן נתונים (snapshot או ציון)
+  const activeStations = new Set();
+  Object.keys(roundSnapshotsByGroup || {}).forEach(st => {
+    if ((roundSnapshotsByGroup[st] || []).length) activeStations.add(st);
+  });
+  Object.keys(stationScores || {}).forEach(st => {
+    if (Object.keys(stationScores[st] || {}).length) activeStations.add(st);
+  });
+  const stations = Array.from(activeStations).sort();
+
+  if (!stations.length) {
+    if (noData)  noData.style.display  = '';
+    tableEl.style.display = 'none';
+    if (badge) badge.textContent = String(generalParticipants.length);
+    return;
+  }
+
+  if (noData) noData.style.display = 'none';
+  tableEl.style.display = '';
+  if (badge) badge.textContent = String(generalParticipants.length);
+
+  // כותרת
+  let headHtml = '<tr><th>צוות</th><th>משתתף</th>';
+  stations.forEach(st => {
+    headHtml += `<th>ת${st} מיקום</th><th>ת${st} ציון</th>`;
+  });
+  headHtml += '<th>ציון ממוצע</th></tr>';
+  thead.innerHTML = headHtml;
+
+  // שורות
+  const sorted = generalParticipants.slice().sort((a,b) => a.team - b.team || a.pid - b.pid);
+  tbody.innerHTML = sorted.map(p => {
+    let row = `<tr><td>${p.team}</td><td><strong>${p.pid}</strong></td>`;
+    const scores = [];
+    stations.forEach(st => {
+      const snaps = roundSnapshotsByGroup[st] || [];
+      const lastSnap = snaps.length ? snaps[snaps.length - 1] : null;
+      const placeRow = lastSnap ? (lastSnap.rows || []).find(r => Number(r.participantId) === p.pid && Number(r.teamId) === p.team) : null;
+      const place = placeRow ? placeRow.place : null;
+      const score = (stationScores[st] || {})[p.pid];
+      if (score != null) scores.push(score);
+      const placeCell = place != null ? `#${place}` : '—';
+      const scoreCell = score != null ? `<span class="score-cell" style="background:${scoreColor(score)}">${score}</span>` : '—';
+      row += `<td>${placeCell}</td><td>${scoreCell}</td>`;
+    });
+    const avg = scores.length ? (scores.reduce((a,b) => a+b, 0) / scores.length) : null;
+    const avgCell = avg != null ? `<span class="score-cell" style="background:${scoreColor(Math.round(avg))}">${avg.toFixed(1)}</span>` : '—';
+    row += `<td>${avgCell}</td></tr>`;
+    return row;
+  }).join('');
 }
 
 function escapeHtml(s) {
@@ -1474,10 +1737,42 @@ async function simSyncSheets(isAuto = false) {
       }
     }
 
+    // ── סנכרון ציוני תחנה ──
+    let scTotal = 0;
+    if (!isAuto) scoreSyncedKeys.clear();
+    for (const stId of Object.keys(stationScores)) {
+      const byPid = stationScores[stId] || {};
+      for (const pidStr of Object.keys(byPid)) {
+        const pid = parseInt(pidStr, 10);
+        const score = byPid[pidStr];
+        const p = generalParticipants.find(x => x.pid === pid);
+        const key = `sc|${stId}|${pid}|${score}`;
+        if (isAuto && scoreSyncedKeys.has(key)) continue;
+        const bodyObj = {
+          type: 'station_score',
+          participant_id: pid,
+          team_id: p ? p.team : '',
+          station: stId,
+          score: score,
+          ts_ms: Date.now()
+        };
+        if (APP_CONFIG.sheetsApiKey && !APP_CONFIG.sheetsApiKey.startsWith('YOUR_')) {
+          bodyObj.key = APP_CONFIG.sheetsApiKey;
+        }
+        try {
+          const res = await fetch(APP_CONFIG.sheetsApiUrl, {
+            method: 'POST',
+            body: JSON.stringify(bodyObj)
+          });
+          if (res.ok) { scoreSyncedKeys.add(key); scTotal++; }
+        } catch (_) { /* המשך */ }
+      }
+    }
+
     if (!isAuto) {
-      const sumTotal = total + gnTotal;
+      const sumTotal = total + gnTotal + scTotal;
       if (sumTotal === 0) showToast('אין רשומות חדשות לסנכרון', 'info');
-      else showToast(`סונכרנו ${total} רשומות מירוץ + ${gnTotal} הערות כלליות ✓`, 'success');
+      else showToast(`סונכרנו ${total} רשומות מירוץ + ${gnTotal} הערות + ${scTotal} ציונים ✓`, 'success');
     }
   } catch (e) {
     if (!isAuto) showToast('לא ניתן להגיע ל-Sheets API', 'error');
@@ -1693,6 +1988,8 @@ function setActiveGroup(groupId) {
   if (info) info.textContent = `צוות ${teamLbl} · תחנה ${groupId}. לא נבחר משתתף.`;
   updateLeaderboard();
   updateStatCards();
+  renderScoreTable();
+  renderSummaryTable();
 }
 
 // ── חישוב היסטוריה לפי EPC מהסנאפשוטים ─────────────
@@ -2036,6 +2333,12 @@ window.saveGeneralParticipants  = saveGeneralParticipants;
 window.selectGeneralParticipant = selectGeneralParticipant;
 window.applyGeneralCustomNote   = applyGeneralCustomNote;
 window.removeGeneralNote        = removeGeneralNote;
+
+// ציונים + טאבי מעריך
+window.applyScore        = applyScore;
+window.removeScore       = removeScore;
+window.switchEvTab       = switchEvTab;
+window.renderSummaryTable = renderSummaryTable;
 </script>
 </body>
 </html>
