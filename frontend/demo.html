@@ -1282,12 +1282,12 @@ function renderGeneralTable() {
       ? `<span class="score-cell" style="background:${scoreColor(sc)}">${sc}</span>`
       : '<span style="color:var(--text-muted); font-size:12px">—</span>';
     return `
-      <tr style="${isSel ? 'background:rgba(99,102,241,0.12)' : ''}${sc != null ? `;border-right:3px solid ${scoreColor(sc)}` : ''}">
+      <tr style="cursor:pointer;${isSel ? 'background:rgba(99,102,241,0.12)' : ''}${sc != null ? `;border-right:3px solid ${scoreColor(sc)}` : ''}" onclick="if(!event.target.closest('.tag-pill')) selectGeneralParticipant(${p.pid})" title="לחץ לבחירה">
         <td>${p.team}</td>
         <td><strong>${p.pid}</strong></td>
         <td>${scoreCell}</td>
         <td>${pills || '<span style="color:var(--text-muted); font-size:12px">—</span>'}</td>
-        <td><button class="btn btn-ghost" style="padding:4px 10px; font-size:14px" onclick="selectGeneralParticipant(${p.pid})" title="בחר להוספת הערה/ציון">+</button></td>
+        <td>${isSel ? '<span style="color:var(--accent); font-weight:700">✓</span>' : '<span style="color:var(--text-muted)">+</span>'}</td>
       </tr>
     `;
   }).join('');
