@@ -799,6 +799,11 @@ function enterAs(role, userIdx) {
 
 function resetToLogin() {
   stopRace();
+  // נקה מצב תפקיד ובחירות כדי למנוע דליפת הרשאות/נתונים בין sessions
+  currentRole = '';
+  selectedEpc = null;
+  selectedGeneralPid = null;
+  closeEvMenu();
   document.getElementById('login-shell').style.display = 'block';
   document.getElementById('app-shell').style.display   = 'none';
 }
@@ -852,8 +857,30 @@ function readRaceStateFromStorage() {
 
 // מאזין לשינויים מטאב אחר
 window.addEventListener('storage', (e) => {
-  if (e.key !== 'demo_race_state') return;
   if (currentRole !== 'evaluator') return; // רק מעריך מקשיב
+
+  // ── רשימת משתתפים / הערות / צוות / ציונים — עדכון מיידי ──
+  if (e.key === GN_LS_PARTICIPANTS || e.key === GN_LS_NOTES || e.key === GN_LS_TEAM) {
+    // המגבש טוען ישירות מ-localStorage; טוענים שוב כדי לא להסתמך על state ישן
+    loadGeneralData();
+    // אם המשתתף הנבחר הוסר — אפס
+    if (selectedGeneralPid != null && !generalParticipants.some(p => p.pid === selectedGeneralPid)) {
+      selectedGeneralPid = null;
+    }
+    refreshGeneralUI();
+    renderScoreTable();
+    renderSummaryTable();
+    return;
+  }
+  if (e.key === SCORE_LS_KEY) {
+    loadStationScores();
+    renderGeneralTable();
+    renderScoreTable();
+    renderSummaryTable();
+    return;
+  }
+
+  if (e.key !== 'demo_race_state') return;
   const state = readRaceStateFromStorage();
   if (!state) {
     // null = איפוס מלא (מחק הכל)
@@ -1154,6 +1181,7 @@ function persistGeneralData() {
 }
 
 function saveGeneralParticipants() {
+  if (currentRole !== 'operator') { showToast('רק מגבש יכול לעדכן את רשימת המשתתפים', 'error'); return; }
   const ta = document.getElementById('gp-input');
   if (!ta) return;
   if (operatorTeam == null) { showToast('צוות לא הוגדר — כנס מחדש ובחר משתמש', 'error'); return; }
@@ -1170,12 +1198,32 @@ function saveGeneralParticipants() {
     parsed.push({ pid, team });
   });
   if (errors.length) { showToast(errors[0], 'error'); return; }
+  const prevPids = new Set(generalParticipants.map(p => p.pid));
   generalParticipants = parsed;
-  // נקה הערות של משתתפים שכבר לא ברשימה
-  Object.keys(generalNotes).forEach(k => { if (!seen.has(parseInt(k,10))) delete generalNotes[k]; });
+  // משתתפים שהוסרו — נקה את הנתונים הלוקאליים שלהם
+  // (הנתונים שכבר סונכרנו ל-Sheets נשארים שם; פה רק מעלימים מהתצוגה באפליקציה)
+  const removed = [];
+  prevPids.forEach(pid => { if (!seen.has(pid)) removed.push(pid); });
+  removed.forEach(pid => {
+    delete generalNotes[pid];
+    Object.keys(stationScores).forEach(st => {
+      if (stationScores[st] && stationScores[st][pid] != null) {
+        delete stationScores[st][pid];
+        if (!Object.keys(stationScores[st]).length) delete stationScores[st];
+      }
+    });
+  });
+  if (removed.length && selectedGeneralPid != null && removed.includes(selectedGeneralPid)) {
+    selectedGeneralPid = null;
+  }
   persistGeneralData();
+  persistStationScores();
   refreshGeneralUI();
-  showToast(`נשמרו ${parsed.length} משתתפים`, 'success');
+  renderScoreTable();
+  renderSummaryTable();
+  // שידור למעריך שהרשימה התעדכנה
+  broadcastRaceState();
+  showToast(`נשמרו ${parsed.length} משתתפים${removed.length ? ` (${removed.length} הוסרו)` : ''}`, 'success');
 }
 
 function refreshGeneralUI() {
@@ -1577,6 +1625,7 @@ function simReboot() {
 }
 
 function simClear() {
+  if (currentRole !== 'operator' && currentRole !== 'admin') { showToast('אין הרשאה', 'error'); return; }
   if (!confirm('⚠️ למחוק את כל נתוני המירוץ?')) return;
   // עצור מירוץ בלי לשמור snapshot (איפוס מלא)
   scanning = false;
@@ -2329,6 +2378,7 @@ function _renderMultiLineChart(ctx, snapshots) {
 
 // ── איפוס גיבוש (מנהל) ───────────────────────────────
 function adminResetEvent() {
+  if (currentRole !== 'admin') { showToast('רק מנהל יכול לבצע איפוס גיבוש', 'error'); return; }
   const confirmed = confirm(
     'איפוס גיבוש\n\n' +
     'פעולה זו תמחק את כל הנתונים:\n' +
