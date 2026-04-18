@@ -397,7 +397,6 @@
             <thead>
               <tr>
                 <th>מיקום</th>
-                <th>צוות</th>
                 <th>משתתף</th>
                 <th id="lb-col-score">זמן ראשון</th>
                 <th>ממוצע</th>
@@ -2143,7 +2142,6 @@ updateLeaderboard = function() {
 
     tr.innerHTML = `
       <td><span class="place-badge">${place}</span></td>
-      <td><strong>${r.teamId}</strong></td>
       <td>${r.participantId}</td>
       <td>${timeStr}</td>
       <td class="hist-cell">${avgPlaceStr}</td>
