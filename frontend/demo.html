@@ -697,6 +697,7 @@ const MOCK_TAGS = [
 // ── מצב ──────────────────────────────────────────────
 let scanning     = false;
 let round        = 0;
+let roundByGroup = {}; // { [stationId]: lastRoundNumber }
 let startTime    = 0;
 let durationMs   = 30000;
 let raceMode     = 0;     // 0=הגעה, 1=הקפות
@@ -824,8 +825,10 @@ function broadcastRaceState() {
     startTime,
     durationMs,
     raceMode,
+    activeGroup,
     leaderboard: leaderboard.map(r => ({ ...r })),
     snapshots: roundSnapshotsByGroup,
+    roundByGroup,
     ts: Date.now()
   };
   localStorage.setItem('demo_race_state', JSON.stringify(state));
@@ -848,6 +851,7 @@ window.addEventListener('storage', (e) => {
     // null = איפוס מלא (מחק הכל)
     leaderboard = [];
     roundSnapshotsByGroup = {};
+    roundByGroup = {};
     round = 0;
     scanning = false;
     updateLeaderboard();
@@ -857,10 +861,14 @@ window.addEventListener('storage', (e) => {
   }
   const prevRound = round;
   scanning   = state.scanning;
-  round      = state.round;
   startTime  = state.startTime;
   durationMs = state.durationMs;
   raceMode   = state.raceMode;
+  if (state.roundByGroup) roundByGroup = state.roundByGroup;
+  // המעריך שולט על תחנתו עצמאית — הסבב המוצג הוא של התחנה הנוכחית שלו
+  round = state.scanning && state.activeGroup === activeGroup
+    ? state.round
+    : (roundByGroup[activeGroup] || 0);
   // אם הסבב ירד (איפוס) — נקה את הסנאפשוטים
   if (state.round === 0 && prevRound > 0) {
     roundSnapshotsByGroup = {};
@@ -920,7 +928,8 @@ function saveCurrentRoundSnapshot() {
 function simStart() {
   if (scanning) return;
   // stopRace() כבר שמר snapshot של הסבב הקודם — אין צורך לשמור שוב כאן
-  round = round + 1;
+  round = (roundByGroup[activeGroup] || 0) + 1;
+  roundByGroup[activeGroup] = round;
   leaderboard = [];
   scanning  = true;
   startTime = Date.now();
@@ -1567,6 +1576,7 @@ function simClear() {
   if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
   leaderboard = [];
   roundSnapshotsByGroup = {};
+  roundByGroup = {};
   round = 0;
   raceHistory = [];
   demoSheetsSyncedKeys.clear();
@@ -1984,11 +1994,20 @@ function getVisibleLeaderboard() {
 function setActiveGroup(groupId) {
   activeGroup = groupId;
   selectedEpc = null;
+  // אפס/טען את מספר הסבב לפי התחנה (אלא אם סריקה פעילה — לא נוגעים)
+  if (!scanning) {
+    round = roundByGroup[groupId] || 0;
+    leaderboard = [];
+  }
+  selectedGeneralPid = null;
   const info = document.getElementById('selected-tag-info');
   const teamLbl = operatorTeam != null ? operatorTeam : '—';
   if (info) info.textContent = `צוות ${teamLbl} · תחנה ${groupId}. לא נבחר משתתף.`;
+  const gnInfo = document.getElementById('gn-selected-info');
+  if (gnInfo) gnInfo.textContent = 'לא נבחר משתתף.';
   updateLeaderboard();
   updateStatCards();
+  renderGeneralTable();
   renderScoreTable();
   renderSummaryTable();
 }
