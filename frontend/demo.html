@@ -45,6 +45,11 @@
     .score-cell { display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:28px; border-radius:6px; font-weight:800; color:#000; padding:0 8px; }
     .ev-subpage { display:none; }
     .ev-subpage.active { display:block; }
+    .ev-menu-dropdown { display:none; position:absolute; top:calc(100% + 4px); right:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; z-index:200; min-width:190px; box-shadow:0 6px 24px rgba(0,0,0,0.4); overflow:hidden; }
+    .ev-menu-item { display:block; width:100%; text-align:right; padding:11px 16px; background:none; border:none; border-bottom:1px solid var(--border); color:var(--text); cursor:pointer; font-size:14px; font-family:inherit; }
+    .ev-menu-item:last-child { border-bottom:none; }
+    .ev-menu-item:hover { background:rgba(99,102,241,0.12); }
+    .ev-menu-item.active { color:var(--accent); font-weight:700; }
 
     #station-modal .modal-box { max-width: 820px; max-height: 92vh; }
     .station-video-wrap {
@@ -348,10 +353,17 @@
         </div>
       </div>
 
-      <!-- טאבי דפי מעריך -->
-      <div class="tab-bar mb-16" id="ev-subtabs">
-        <button class="tab-btn active" data-evtab="ev-main">🏠 ראשי</button>
-        <button class="tab-btn" data-evtab="ev-summary">📊 סיכום ציונים</button>
+      <!-- תפריט דפי מעריך -->
+      <div style="display:flex; justify-content:flex-start; margin-bottom:16px; position:relative" id="ev-menu-wrap">
+        <button class="btn btn-ghost" onclick="toggleEvMenu()" id="ev-menu-btn" style="gap:6px; display:flex; align-items:center">
+          <span id="ev-menu-current-icon">🏠</span>
+          <span id="ev-menu-current-label">ראשי</span>
+          <span style="font-size:11px; opacity:0.7">▼</span>
+        </button>
+        <div class="ev-menu-dropdown" id="ev-menu-dropdown">
+          <button class="ev-menu-item active" data-evtab="ev-main" onclick="switchEvTab('ev-main')">🏠 ראשי</button>
+          <button class="ev-menu-item" data-evtab="ev-summary" onclick="switchEvTab('ev-summary')">📊 סיכום ציונים</button>
+        </div>
       </div>
 
       <!-- ══ דף ראשי ══ -->
@@ -423,6 +435,7 @@
               <tr>
                 <th>צוות</th>
                 <th>משתתף</th>
+                <th>ציון</th>
                 <th>הערות</th>
                 <th></th>
               </tr>
@@ -439,23 +452,6 @@
         <p style="font-size:13px; margin-bottom:10px">לחץ על <strong>+</strong> ליד משתתף, ובחר ציון 1–7.</p>
         <div class="score-btn-row mb-12" id="score-btn-row"></div>
         <div id="score-selected-info" style="font-size:13px; color:var(--text-muted)">לא נבחר משתתף.</div>
-      </div>
-
-      <div id="score-table-wrap" class="section mb-16" style="display:none">
-        <div class="flex flex-center flex-between mb-12">
-          <h3>ציונים שניתנו · תחנה <span id="score-station-label">—</span></h3>
-        </div>
-        <table class="lb-table" id="score-table">
-          <thead>
-            <tr>
-              <th>צוות</th>
-              <th>משתתף</th>
-              <th>ציון</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="score-tbody"></tbody>
-        </table>
       </div>
 
       <!-- כפתורי הורדה וסנכרון (בסוף הדף) -->
@@ -815,8 +811,10 @@ document.querySelectorAll('[data-view]').forEach(btn => {
   });
 });
 
-document.querySelectorAll('[data-evtab]').forEach(btn => {
-  btn.addEventListener('click', () => switchEvTab(btn.dataset.evtab));
+// סגור תפריט מעריך בלחיצה מחוצה לו
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('ev-menu-wrap');
+  if (wrap && !wrap.contains(e.target)) closeEvMenu();
 });
 
 // ── סימולציית מירוץ ───────────────────────────────────
@@ -1216,12 +1214,17 @@ function renderGeneralTable() {
       `<span class="tag-pill" style="font-size:11px;padding:3px 8px" title="לחץ למחיקה" onclick="removeGeneralNote(${p.pid}, ${i})">${escapeHtml(n)} ✕</span>`
     ).join(' ');
     const isSel = selectedGeneralPid === p.pid;
+    const sc = (stationScores[activeGroup] || {})[p.pid];
+    const scoreCell = sc != null
+      ? `<span class="score-cell" style="background:${scoreColor(sc)}">${sc}</span>`
+      : '<span style="color:var(--text-muted); font-size:12px">—</span>';
     return `
-      <tr style="${isSel ? 'background:rgba(99,102,241,0.12)' : ''}">
+      <tr style="${isSel ? 'background:rgba(99,102,241,0.12)' : ''}${sc != null ? `;border-right:3px solid ${scoreColor(sc)}` : ''}">
         <td>${p.team}</td>
         <td><strong>${p.pid}</strong></td>
+        <td>${scoreCell}</td>
         <td>${pills || '<span style="color:var(--text-muted); font-size:12px">—</span>'}</td>
-        <td><button class="btn btn-ghost" style="padding:4px 10px; font-size:14px" onclick="selectGeneralParticipant(${p.pid})" title="בחר להוספת הערה">+</button></td>
+        <td><button class="btn btn-ghost" style="padding:4px 10px; font-size:14px" onclick="selectGeneralParticipant(${p.pid})" title="בחר להוספת הערה/ציון">+</button></td>
       </tr>
     `;
   }).join('');
@@ -1331,6 +1334,7 @@ function applyScore(score) {
   stationScores[activeGroup] = stationScores[activeGroup] || {};
   stationScores[activeGroup][selectedGeneralPid] = score;
   persistStationScores();
+  renderGeneralTable();
   renderScoreTable();
   renderSummaryTable();
   showToast(`ציון ${score} נשמר למשתתף ${selectedGeneralPid} · תחנה ${activeGroup}`, 'success');
@@ -1341,15 +1345,13 @@ function removeScore(pid) {
   delete stationScores[activeGroup][pid];
   if (!Object.keys(stationScores[activeGroup]).length) delete stationScores[activeGroup];
   persistStationScores();
+  renderGeneralTable();
   renderScoreTable();
   renderSummaryTable();
 }
 
 function renderScoreTable() {
-  const wrap = document.getElementById('score-table-wrap');
-  const tbody = document.getElementById('score-tbody');
-  const label = document.getElementById('score-station-label');
-  const info  = document.getElementById('score-selected-info');
+  const info = document.getElementById('score-selected-info');
   if (info) {
     if (selectedGeneralPid != null) {
       const p = generalParticipants.find(x => x.pid === selectedGeneralPid);
@@ -1361,32 +1363,27 @@ function renderScoreTable() {
       info.textContent = 'לא נבחר משתתף.';
     }
   }
-  if (label) label.textContent = activeGroup || '—';
-  if (!tbody || !wrap) return;
-  const scoresForStation = stationScores[activeGroup] || {};
-  const entries = Object.keys(scoresForStation)
-    .map(pid => ({ pid: parseInt(pid, 10), score: scoresForStation[pid] }))
-    .filter(e => generalParticipants.some(p => p.pid === e.pid))
-    .sort((a, b) => b.score - a.score || a.pid - b.pid);
-  if (!entries.length) { wrap.style.display = 'none'; return; }
-  wrap.style.display = '';
-  tbody.innerHTML = entries.map(e => {
-    const p = generalParticipants.find(x => x.pid === e.pid);
-    const bg = scoreColor(e.score);
-    return `
-      <tr>
-        <td>${p ? p.team : '—'}</td>
-        <td><strong>${e.pid}</strong></td>
-        <td><span class="score-cell" style="background:${bg}">${e.score}</span></td>
-        <td><button class="btn btn-ghost" style="padding:4px 10px; font-size:13px" onclick="removeScore(${e.pid})" title="מחק ציון">✕</button></td>
-      </tr>
-    `;
-  }).join('');
 }
 
-// ── טאבים בדף המעריך ─────────────────────────────────
+// ── תפריט דפי מעריך ──────────────────────────────────
+const EV_PAGES = {
+  'ev-main':    { icon: '🏠', label: 'ראשי' },
+  'ev-summary': { icon: '📊', label: 'סיכום ציונים' },
+};
+
+function toggleEvMenu() {
+  const d = document.getElementById('ev-menu-dropdown');
+  if (!d) return;
+  d.style.display = d.style.display === 'block' ? 'none' : 'block';
+}
+
+function closeEvMenu() {
+  const d = document.getElementById('ev-menu-dropdown');
+  if (d) d.style.display = 'none';
+}
+
 function switchEvTab(tabId) {
-  document.querySelectorAll('[data-evtab]').forEach(b => {
+  document.querySelectorAll('.ev-menu-item').forEach(b => {
     b.classList.toggle('active', b.dataset.evtab === tabId);
   });
   document.querySelectorAll('.ev-subpage').forEach(p => {
@@ -1394,6 +1391,12 @@ function switchEvTab(tabId) {
     p.classList.toggle('active', on);
     p.style.display = on ? '' : 'none';
   });
+  const meta = EV_PAGES[tabId] || {};
+  const iconEl  = document.getElementById('ev-menu-current-icon');
+  const labelEl = document.getElementById('ev-menu-current-label');
+  if (iconEl)  iconEl.textContent  = meta.icon  || '';
+  if (labelEl) labelEl.textContent = meta.label || tabId;
+  closeEvMenu();
   if (tabId === 'ev-summary') renderSummaryTable();
 }
 
@@ -2334,10 +2337,12 @@ window.selectGeneralParticipant = selectGeneralParticipant;
 window.applyGeneralCustomNote   = applyGeneralCustomNote;
 window.removeGeneralNote        = removeGeneralNote;
 
-// ציונים + טאבי מעריך
-window.applyScore        = applyScore;
-window.removeScore       = removeScore;
-window.switchEvTab       = switchEvTab;
+// ציונים + תפריט מעריך
+window.applyScore         = applyScore;
+window.removeScore        = removeScore;
+window.switchEvTab        = switchEvTab;
+window.toggleEvMenu       = toggleEvMenu;
+window.closeEvMenu        = closeEvMenu;
 window.renderSummaryTable = renderSummaryTable;
 </script>
 </body>
