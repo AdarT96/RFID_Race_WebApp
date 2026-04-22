@@ -538,6 +538,29 @@
         <button class="btn btn-danger" style="width:100%; padding:14px; font-size:16px; font-weight:700" onclick="adminResetEvent()">🔄 איפוס גיבוש</button>
       </div>
 
+      <!-- חיבור לבקרי ESP32 -->
+      <div class="card mb-16">
+        <div class="flex flex-center flex-between mb-8">
+          <h2>📡 חיבור לבקרי ESP32</h2>
+          <label class="flex flex-center gap-8" style="font-size:14px">
+            <input type="checkbox" id="esp32-enabled-toggle" onchange="adminEsp32ToggleEnabled(this.checked)">
+            <span>הפעל מצב בקרים</span>
+          </label>
+        </div>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px">
+          כאשר המצב פעיל — לחיצה על "התחל מרוץ" / "עצור" / "איפוס" תשלח פקודות HTTP אמיתיות לבקר התחנה המתאימה, והמערכת תקרא תגים ישירות ממנו.
+          כל ESP32 מייצג תחנה, ומחובר לאותה רשת Wi-Fi של המכשיר עליו פועלת האפליקציה.
+        </p>
+        <p style="font-size:12px; color:var(--warning); margin-bottom:12px">
+          ⚠ הדפדפן חוסם HTTP מדף HTTPS. הפעל את האפליקציה מקומית (<code>python -m http.server</code> / Live Server) כדי שהקריאות לבקרים יעבדו.
+        </p>
+        <div id="esp32-stations-list" style="display:flex; flex-direction:column; gap:8px"></div>
+        <div class="flex gap-8" style="margin-top:12px; flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="adminEsp32SaveAddrs()">💾 שמור כתובות</button>
+          <button class="btn btn-secondary" onclick="adminEsp32ResetDefaults()">🔄 ברירת מחדל (mDNS)</button>
+        </div>
+      </div>
+
       <!-- היסטוריית מרוצים -->
       <div class="card mb-16">
         <h2 class="mb-12">🏁 היסטוריית מרוצים</h2>
@@ -591,6 +614,7 @@
 <div id="toast-container"></div>
 
 <script src="js/firebase-config.js"></script>
+<script src="js/esp32-client.js"></script>
 <script>
 // ── הגדרות ────────────────────────────────────────────
 const COMMENT_TAGS = ['טכניקה', 'מצוינות', 'מהירות', 'עבודת צוות', 'דיוק', 'מנהיגות'];
@@ -721,6 +745,10 @@ let autoSheetsTimer = null;
 let lastAutoSheetsHash = '';
 let demoSheetsSyncedKeys = new Set();
 const DEMO_SHEETS_SYNC_ENABLED = !!(typeof APP_CONFIG !== 'undefined' && APP_CONFIG.enableDemoSheetsSync === true);
+let esp32PollTimer = null;      // polling loop during scanning via ESP32
+let esp32PollBusy  = false;     // re-entrancy guard
+let esp32LastError = null;      // remember last poll failure
+const ESP32_POLL_MS = 500;
 
 // ── בחירת משתמש לפני כניסה ────────────────────────────
 function toggleUserPicker(pickerId) {
@@ -773,6 +801,7 @@ function enterAs(role, userIdx) {
     showPage('admin-page');
     document.getElementById('view-tabs').style.display = 'none';
     renderAdminUsers();
+    adminEsp32RenderList();
   } else {
     // מגבש ומעריך — שני הטאבים גלויים, ניתן לעבור ביניהם חופשי
     document.getElementById('view-tabs').style.display = '';
@@ -959,6 +988,79 @@ function saveCurrentRoundSnapshot() {
   }
 }
 
+// ── ESP32 integration helpers ───────────────────────
+function esp32Active() {
+  return !!(window.ESP32 && window.ESP32.isEnabled());
+}
+
+function esp32StationNum() {
+  // activeGroup is a zero-padded string like '01'..'08' — convert to int
+  return parseInt(activeGroup, 10) || 1;
+}
+
+// Convert ESP32 /tags payload into the app's leaderboard row shape.
+// Preserves evaluator comments already on matching rows.
+function esp32TagsToRows(payload) {
+  const tags = (payload && payload.tags) || [];
+  const mode = (payload && payload.mode) || (raceMode === 1 ? 'laps' : 'arrival');
+  const rows = tags.map(t => {
+    const epc = String(t.epc || '');
+    const teamId = epc.length >= 6 ? epc.slice(-6, -4) : '';
+    const participantId = epc.length >= 4 ? epc.slice(-4) : '';
+    const existing = leaderboard.find(x => x.epc === epc);
+    return {
+      epc,
+      teamId,
+      participantId,
+      stationId: activeGroup,
+      firstMs: Number(t.first_ms || 0),
+      lastMs:  Number(t.last_ms  || t.first_ms || 0),
+      laps:    Number(t.count    || 1),
+      rssi:    Number(t.rssi     || 0),
+      antenna: Number(t.antenna  || 0),
+      comments: existing && Array.isArray(existing.comments) ? existing.comments.slice() : [],
+      place:   0
+    };
+  });
+  if (mode === 'laps') {
+    rows.sort((a, b) => b.laps - a.laps || a.lastMs - b.lastMs);
+  } else {
+    rows.sort((a, b) => a.firstMs - b.firstMs);
+  }
+  rows.forEach((r, i) => r.place = i + 1);
+  return rows;
+}
+
+async function esp32PollOnce() {
+  if (esp32PollBusy) return;
+  esp32PollBusy = true;
+  try {
+    const resp = await window.ESP32.tags(esp32StationNum());
+    esp32LastError = null;
+    leaderboard = esp32TagsToRows(resp);
+    updateLeaderboard();
+    updateStatCards();
+    broadcastRaceState();
+  } catch (e) {
+    if (esp32LastError !== e.message) {
+      esp32LastError = e.message;
+      showToast('לא ניתן להגיע לבקר ESP32 של התחנה', 'error');
+    }
+  } finally {
+    esp32PollBusy = false;
+  }
+}
+
+function esp32StartPolling() {
+  if (esp32PollTimer) clearInterval(esp32PollTimer);
+  esp32PollOnce();
+  esp32PollTimer = setInterval(esp32PollOnce, ESP32_POLL_MS);
+}
+
+function esp32StopPolling() {
+  if (esp32PollTimer) { clearInterval(esp32PollTimer); esp32PollTimer = null; }
+}
+
 function simStart() {
   if (scanning) return;
   // stopRace() כבר שמר snapshot של הסבב הקודם — אין צורך לשמור שוב כאן
@@ -970,7 +1072,27 @@ function simStart() {
   updateStatCards();
   showToast('המירוץ התחיל — סבב #' + round, 'success');
   startUiTick();
-  scheduleTagArrivals();
+
+  if (esp32Active()) {
+    const mode = raceMode === 1 ? 'laps' : 'arrival';
+    // Build EPC list from the operator's participant roster so the ESP32
+    // simulates exactly the right tags (EPC = E2003412 + team(2) + pid(4)).
+    const participantEpcs = generalParticipants.map(p => {
+      const team = String(p.team).padStart(2, '0');
+      const pid  = String(p.pid).padStart(4, '0');
+      return 'E2003412' + team + pid;
+    });
+    window.ESP32.start(esp32StationNum(), round, mode, participantEpcs)
+      .then(() => { esp32StartPolling(); })
+      .catch(err => {
+        scanning = false;
+        showToast('בקר ESP32 לא מגיב: ' + err.message, 'error');
+        const bs = document.getElementById('btn-start'); if (bs) bs.disabled = false;
+      });
+  } else {
+    scheduleTagArrivals();
+  }
+
   broadcastRaceState();
   if (DEMO_SHEETS_SYNC_ENABLED) {
     if (autoSheetsTimer) clearInterval(autoSheetsTimer);
@@ -990,6 +1112,11 @@ function stopRace() {
   scanning = false;
   if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
   if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
+  if (esp32Active()) {
+    // one last poll + /stop; swallow errors so UI still updates
+    window.ESP32.stop(esp32StationNum()).catch(() => {});
+    esp32PollOnce().catch(() => {}).finally(() => esp32StopPolling());
+  }
   updateStatCards();
   updateLeaderboard();
   simSyncSheets(true);
@@ -1617,9 +1744,15 @@ function simSetPower() {
 }
 
 function simReboot() {
-  if (!confirm('לסמלץ איפוס ESP32? המירוץ יעצור.')) return;
+  if (!confirm('לבצע איפוס בקר ESP32 של התחנה? המירוץ יעצור.')) return;
   stopRace();
-  showToast('איפוס ESP32 בוצע (סימולציה)', 'info');
+  if (esp32Active()) {
+    window.ESP32.reset(esp32StationNum())
+      .then(() => showToast('איפוס ESP32 בוצע על בקר התחנה', 'success'))
+      .catch(err => showToast('איפוס נכשל: ' + err.message, 'error'));
+  } else {
+    showToast('איפוס ESP32 בוצע (סימולציה)', 'info');
+  }
 }
 
 function simClear() {
@@ -1629,6 +1762,10 @@ function simClear() {
   scanning = false;
   if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
   if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
+  if (esp32Active()) {
+    esp32StopPolling();
+    window.ESP32.clear(esp32StationNum()).catch(() => {});
+  }
   leaderboard = [];
   roundSnapshotsByGroup = {};
   roundByGroup = {};
@@ -2424,6 +2561,79 @@ function adminResetEvent() {
   showToast('הגיבוש אופס — מוכן לאירוע חדש', 'success');
 }
 
+// ── ESP32 — ניהול כתובות מהמסך מנהל ─────────────────
+function adminEsp32RenderList() {
+  const host = document.getElementById('esp32-stations-list');
+  if (!host || !window.ESP32) return;
+  const map = window.ESP32.loadAddrs();
+  const html = STATIONS.map(st => {
+    const idStr = window.ESP32.pad2(st.id);
+    const current = (map[idStr] || window.ESP32.defaultAddrFor(st.id));
+    return `
+      <div class="flex flex-center gap-8" style="flex-wrap:wrap; padding:8px; background:var(--bg-elev,#151923); border-radius:8px">
+        <div style="min-width:140px; font-weight:600">${st.icon || '📡'} ${st.name}</div>
+        <input class="form-input esp32-addr-input" data-station="${idStr}"
+               style="flex:1; min-width:200px" value="${current}"
+               placeholder="http://gibush-stXX.local">
+        <button class="btn btn-secondary" onclick="adminEsp32Test('${idStr}', this)" style="padding:6px 12px">בדוק</button>
+        <span class="esp32-test-result" data-station="${idStr}" style="font-size:12px; min-width:80px"></span>
+      </div>`;
+  }).join('');
+  host.innerHTML = html;
+  const tog = document.getElementById('esp32-enabled-toggle');
+  if (tog) tog.checked = window.ESP32.isEnabled();
+}
+function adminEsp32ToggleEnabled(on) {
+  if (!window.ESP32) return;
+  window.ESP32.setEnabled(!!on);
+  showToast(on ? 'מצב בקרי ESP32 הופעל' : 'מצב בקרי ESP32 כובה', on ? 'success' : 'info');
+}
+function adminEsp32SaveAddrs() {
+  if (!window.ESP32) return;
+  const inputs = document.querySelectorAll('.esp32-addr-input');
+  const map = {};
+  inputs.forEach(inp => {
+    const id = inp.dataset.station;
+    const val = (inp.value || '').trim();
+    if (val) map[id] = val;
+  });
+  window.ESP32.saveAddrs(map);
+  showToast('כתובות הבקרים נשמרו', 'success');
+  adminEsp32RenderList();
+}
+function adminEsp32ResetDefaults() {
+  if (!window.ESP32) return;
+  window.ESP32.saveAddrs({});
+  showToast('הוחזר למצב ברירת מחדל (gibush-stXX.local)', 'info');
+  adminEsp32RenderList();
+}
+async function adminEsp32Test(idStr, btn) {
+  const resEl = document.querySelector('.esp32-test-result[data-station="' + idStr + '"]');
+  const inp   = document.querySelector('.esp32-addr-input[data-station="' + idStr + '"]');
+  if (!window.ESP32) return;
+  // שמור זמני את הערך כדי שהקריאה תצא לכתובת הנוכחית בשדה
+  const prev = window.ESP32.loadAddrs();
+  const tmp = Object.assign({}, prev);
+  if (inp && inp.value.trim()) tmp[idStr] = inp.value.trim();
+  window.ESP32.saveAddrs(tmp);
+  if (resEl) { resEl.textContent = '⏳...'; resEl.style.color = 'var(--text-muted)'; }
+  if (btn) btn.disabled = true;
+  try {
+    const info = await window.ESP32.info(parseInt(idStr, 10));
+    if (resEl) {
+      resEl.textContent = '✓ ST' + info.station_id + ' · ' + (info.firmware || 'ok');
+      resEl.style.color = 'var(--success)';
+    }
+  } catch (e) {
+    if (resEl) {
+      resEl.textContent = '✕ ' + (e && e.message ? e.message : 'שגיאה');
+      resEl.style.color = 'var(--danger)';
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ── חשיפה לגלובל ──────────────────────────────────────
 window.enterAs           = enterAs;
 window.resetToLogin      = resetToLogin;
@@ -2451,6 +2661,11 @@ window.demoApprove       = demoApprove;
 window.demoReject        = demoReject;
 window.demoPromote       = demoPromote;
 window.adminResetEvent   = adminResetEvent;
+window.adminEsp32RenderList    = adminEsp32RenderList;
+window.adminEsp32ToggleEnabled = adminEsp32ToggleEnabled;
+window.adminEsp32SaveAddrs     = adminEsp32SaveAddrs;
+window.adminEsp32ResetDefaults = adminEsp32ResetDefaults;
+window.adminEsp32Test          = adminEsp32Test;
 
 // הערות כלליות
 window.toggleUserPicker         = toggleUserPicker;
