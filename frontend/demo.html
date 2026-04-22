@@ -400,6 +400,7 @@
                 <th>משתתף</th>
                 <th id="lb-col-score">זמן ראשון</th>
                 <th>ממוצע</th>
+                <th>ציון תחנה</th>
                 <th>הערות</th>
               </tr>
             </thead>
@@ -1113,9 +1114,12 @@ function stopRace() {
   if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
   if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
   if (esp32Active()) {
-    // one last poll + /stop; swallow errors so UI still updates
-    window.ESP32.stop(esp32StationNum()).catch(() => {});
-    esp32PollOnce().catch(() => {}).finally(() => esp32StopPolling());
+    // Stop polling immediately, then tell the controller, then do one last poll
+    esp32StopPolling();
+    window.ESP32.stop(esp32StationNum())
+      .catch(() => {})
+      .then(() => esp32PollOnce())
+      .catch(() => {});
   }
   updateStatCards();
   updateLeaderboard();
@@ -1250,6 +1254,11 @@ function updateLeaderboard() {
       `<span class="tag-pill" style="font-size:11px;padding:3px 8px">${c}</span>`
     ).join('');
 
+    const stScore = (stationScores[activeGroup] || {})[Number(r.participantId)];
+    const stScoreCell = (stScore != null)
+      ? `<span class="place-badge" style="background:${scoreColor(stScore)};color:#fff">${stScore}</span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+
     tr.innerHTML = `
       <td><span class="place-badge">${place}</span></td>
       <td><strong>${r.teamId}</strong></td>
@@ -1259,7 +1268,7 @@ function updateLeaderboard() {
       </td>
       <td>${timeStr}</td>
       <td class="hist-cell">—</td>
-      <td class="hist-cell">—</td>
+      <td class="hist-cell">${stScoreCell}</td>
       <td style="color:var(--text-muted)">${r.rssi} dBm</td>
       <td>
         <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
@@ -1525,6 +1534,7 @@ function applyScore(score) {
   renderGeneralTable();
   renderScoreTable();
   renderSummaryTable();
+  updateLeaderboard();
   showToast(`ציון ${score} נשמר למשתתף ${selectedGeneralPid} · ${getStationLabel(activeGroup)}`, 'success');
 }
 
@@ -1536,6 +1546,7 @@ function removeScore(pid) {
   renderGeneralTable();
   renderScoreTable();
   renderSummaryTable();
+  updateLeaderboard();
 }
 
 function renderScoreTable() {
@@ -2340,11 +2351,17 @@ updateLeaderboard = function() {
       ? (hist.reduce((s, v) => s + v, 0) / hist.length).toFixed(1)
       : '—';
 
+    const stScore = (stationScores[activeGroup] || {})[Number(r.participantId)];
+    const stScoreCell = (stScore != null)
+      ? `<span class="place-badge" style="background:${scoreColor(stScore)};color:#fff">${stScore}</span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+
     tr.innerHTML = `
       <td><span class="place-badge">${place}</span></td>
       <td>${r.participantId}</td>
       <td>${timeStr}</td>
       <td class="hist-cell">${avgPlaceStr}</td>
+      <td class="hist-cell">${stScoreCell}</td>
       <td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${comments}
       <button onclick="selectParticipant('${r.epc}','${r.participantId}')" style="font-size:11px;padding:2px 8px;background:var(--surface);border:1px solid var(--border);border-radius:999px;cursor:pointer;color:var(--text-muted)">+</button>
       </div></td>`;
@@ -2360,6 +2377,13 @@ stopRace = function() {
   scanning = false;
   if (tagTimer) { clearTimeout(tagTimer); tagTimer = null; }
   if (autoSheetsTimer) { clearInterval(autoSheetsTimer); autoSheetsTimer = null; }
+  if (esp32Active()) {
+    esp32StopPolling();
+    window.ESP32.stop(esp32StationNum())
+      .catch(() => {})
+      .then(() => esp32PollOnce())
+      .catch(() => {});
+  }
   if (wasScanning && leaderboard.length > 0) saveRaceToHistory();
   updateStatCards();
   updateLeaderboard();
