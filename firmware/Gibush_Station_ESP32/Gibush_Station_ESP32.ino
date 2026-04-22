@@ -106,10 +106,12 @@ void recordTag(int poolIdx, unsigned long relMs) {
     if (tagCount >= MAX_TAGS) return;
     tags[tagCount] = { mockEpcs[poolIdx], relMs, relMs, 1,
                        mockAntenna[poolIdx], mockRssi[poolIdx] };
+    Serial.printf("[TAG]   new  EPC=%s t=%lums\n", mockEpcs[poolIdx].c_str(), relMs);
     tagCount++;
     return;
   }
   tags[idx].lastMs = relMs;
+  Serial.printf("[TAG]   bump EPC=%s count=%d\n", mockEpcs[poolIdx].c_str(), tags[idx].count);
 }
 
 // ── Simulation tick (called from loop) ───────────────────
@@ -160,6 +162,7 @@ void sendJson(int code, JsonDocument& doc) {
 
 // ── Endpoints ────────────────────────────────────────────
 void handleInfo() {
+  Serial.printf("[INFO] GET /info from %s\n", server.client().remoteIP().toString().c_str());
   StaticJsonDocument<384> doc;
   doc["station_id"] = STATION_ID;
   doc["firmware"]   = "gibush-demo-0.2";
@@ -176,10 +179,10 @@ void handleInfo() {
 }
 
 void handleStart() {
+  Serial.printf("[START] POST /start from %s\n", server.client().remoteIP().toString().c_str());
   int    reqRound = 1;
   String reqMode  = "arrival";
 
-  // Use a heap-allocated doc to handle large participant arrays
   DynamicJsonDocument body(8192);
   bool hasParticipants = false;
 
@@ -191,11 +194,19 @@ void handleStart() {
       if (body.containsKey("participants") && body["participants"].is<JsonArray>()) {
         buildPoolFromEpcs(body["participants"].as<JsonArray>());
         hasParticipants = true;
+        Serial.printf("[START] participants from app: %d EPCs\n", poolSize);
+        for (int i = 0; i < poolSize; i++)
+          Serial.printf("  [%d] %s\n", i, mockEpcs[i].c_str());
       }
+    } else {
+      Serial.printf("[START] JSON parse error: %s\n", err.c_str());
     }
   }
 
-  if (!hasParticipants) buildFallbackPool();
+  if (!hasParticipants) {
+    buildFallbackPool();
+    Serial.printf("[START] no participants from app — using fallback pool (%d EPCs)\n", poolSize);
+  }
 
   currentRound = reqRound;
   currentMode  = reqMode;
@@ -203,6 +214,8 @@ void handleStart() {
   resetTimings();
   scanning    = true;
   scanStartMs = millis();
+
+  Serial.printf("[START] round=%d mode=%s pool=%d\n", currentRound, currentMode.c_str(), poolSize);
 
   StaticJsonDocument<192> res;
   res["ok"]         = true;
@@ -214,6 +227,7 @@ void handleStart() {
 }
 
 void handleStop() {
+  Serial.printf("[STOP]  POST /stop  — tags recorded: %d\n", tagCount);
   scanning = false;
   StaticJsonDocument<128> res;
   res["ok"]         = true;
@@ -223,6 +237,7 @@ void handleStop() {
 }
 
 void handleClear() {
+  Serial.println("[CLEAR] POST /clear");
   scanning  = false;
   tagCount  = 0;
   poolSize  = 0;
@@ -232,6 +247,7 @@ void handleClear() {
 }
 
 void handleReset() {
+  Serial.println("[RESET] POST /reset");
   scanning      = false;
   tagCount      = 0;
   poolSize      = 0;
@@ -242,6 +258,7 @@ void handleReset() {
 }
 
 void handleTags() {
+  Serial.printf("[TAGS]  GET /tags  — scanning=%d tags=%d\n", scanning, tagCount);
   DynamicJsonDocument doc(8192);
   doc["station_id"] = STATION_ID;
   doc["scanning"]   = scanning;
