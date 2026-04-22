@@ -441,7 +441,6 @@
             <thead>
               <tr>
                 <th>משתתף</th>
-                <th>ציון</th>
                 <th>הערות</th>
                 <th></th>
               </tr>
@@ -1256,8 +1255,8 @@ function updateLeaderboard() {
 
     const stScore = (stationScores[activeGroup] || {})[Number(r.participantId)];
     const stScoreCell = (stScore != null)
-      ? `<span class="place-badge" style="background:${scoreColor(stScore)};color:#fff">${stScore}</span>`
-      : '<span style="color:var(--text-muted)">—</span>';
+      ? `<span class="score-cell" style="background:${scoreColor(stScore)}">${stScore}</span>`
+      : '<span style="color:var(--text-muted); font-size:12px">—</span>';
 
     tr.innerHTML = `
       <td><span class="place-badge">${place}</span></td>
@@ -1413,13 +1412,9 @@ function renderGeneralTable() {
     ).join(' ');
     const isSel = selectedGeneralPid === p.pid;
     const sc = (stationScores[activeGroup] || {})[p.pid];
-    const scoreCell = sc != null
-      ? `<span class="score-cell" style="background:${scoreColor(sc)}">${sc}</span>`
-      : '<span style="color:var(--text-muted); font-size:12px">—</span>';
     return `
       <tr style="cursor:pointer;${isSel ? 'background:rgba(99,102,241,0.12)' : ''}${sc != null ? `;border-right:3px solid ${scoreColor(sc)}` : ''}" onclick="if(!event.target.closest('.tag-pill')) selectGeneralParticipant(${p.pid})" title="לחץ לבחירה">
         <td><strong>${p.pid}</strong></td>
-        <td>${scoreCell}</td>
         <td>${pills || '<span style="color:var(--text-muted); font-size:12px">—</span>'}</td>
         <td>${isSel ? '<span style="color:var(--accent); font-weight:700">✓</span>' : '<span style="color:var(--text-muted)">+</span>'}</td>
       </tr>
@@ -2353,8 +2348,8 @@ updateLeaderboard = function() {
 
     const stScore = (stationScores[activeGroup] || {})[Number(r.participantId)];
     const stScoreCell = (stScore != null)
-      ? `<span class="place-badge" style="background:${scoreColor(stScore)};color:#fff">${stScore}</span>`
-      : '<span style="color:var(--text-muted)">—</span>';
+      ? `<span class="score-cell" style="background:${scoreColor(stScore)}">${stScore}</span>`
+      : '<span style="color:var(--text-muted); font-size:12px">—</span>';
 
     tr.innerHTML = `
       <td><span class="place-badge">${place}</span></td>
