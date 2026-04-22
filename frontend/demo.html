@@ -296,7 +296,7 @@
             <div class="ant-grid" id="ant-buttons"></div>
           </div>
           <div class="gear-row" style="justify-content:flex-start; padding-top:12px">
-            <button class="btn btn-ghost" onclick="simReboot()" style="color:var(--warning); border-color:var(--warning); font-size:13px">
+            <button class="btn btn-ghost" id="btn-reboot-esp32" onclick="simReboot()" style="color:var(--warning); border-color:var(--warning); font-size:13px">
               🔄 איפוס ESP32 (מדומה)
             </button>
           </div>
@@ -814,6 +814,7 @@ function enterAs(role, userIdx) {
   }
 
   initAntennaButtons();
+  refreshEsp32UiLabels();
   initCommentPills();
   renderStationGrid();
   loadGeneralData();
@@ -991,6 +992,21 @@ function saveCurrentRoundSnapshot() {
 // ── ESP32 integration helpers ───────────────────────
 function esp32Active() {
   return !!(window.ESP32 && window.ESP32.isEnabled());
+}
+
+// Refresh the navbar/gear labels to reflect real vs simulated mode.
+function refreshEsp32UiLabels() {
+  const lbl  = document.getElementById('conn-label');
+  const dot  = document.getElementById('conn-dot');
+  const reb  = document.getElementById('btn-reboot-esp32');
+  const live = esp32Active();
+  if (lbl) lbl.textContent = live ? 'ESP32 מחובר' : 'ESP32 מדומה';
+  if (dot) {
+    const color = live ? 'var(--success)' : 'var(--warning)';
+    dot.style.background = color;
+    dot.style.boxShadow  = '0 0 6px ' + color;
+  }
+  if (reb) reb.textContent = live ? '🔄 איפוס ESP32' : '🔄 איפוס ESP32 (מדומה)';
 }
 
 function esp32StationNum() {
@@ -2605,6 +2621,7 @@ function adminEsp32RenderList() {
 function adminEsp32ToggleEnabled(on) {
   if (!window.ESP32) return;
   window.ESP32.setEnabled(!!on);
+  refreshEsp32UiLabels();
   showToast(on ? 'מצב בקרי ESP32 הופעל' : 'מצב בקרי ESP32 כובה', on ? 'success' : 'info');
 }
 function adminEsp32SaveAddrs() {
